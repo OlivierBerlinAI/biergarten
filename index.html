@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>🍺 Biergarten-Tycoon</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍺</text></svg>">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #2e4a1f;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+      color: #fff;
+    }
+    #stage {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .panel {
+      position: fixed;
+      background: rgba(20, 28, 14, 0.82);
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      user-select: none;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+    .panel h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #ffd34d;
+    }
+    b { color: #ffd34d; }
+
+    /* live stats (top-left) */
+    #hud { top: 10px; left: 10px; width: 210px; }
+    .row { display: flex; justify-content: space-between; gap: 10px; }
+    .gauge {
+      position: relative;
+      height: 14px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.15);
+      overflow: hidden;
+      margin: 2px 0 7px;
+    }
+    .gauge > .fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      border-radius: 7px;
+    }
+    .gauge > .lbl {
+      position: relative;
+      display: block;
+      text-align: center;
+      font-size: 11px;
+      line-height: 14px;
+      text-shadow: 0 1px 2px #000;
+    }
+    .fill.beer    { background: linear-gradient(90deg, #c98a1a, #f5b531); }
+    .fill.toilet  { background: linear-gradient(90deg, #6a8fbf, #9ec3ef); }
+    .fill.dirt    { background: linear-gradient(90deg, #6a4a22, #9a6a32); }
+    .fill.sat     { background: linear-gradient(90deg, #3f9d57, #6fe08c); }
+    .fill.thirst  { background: linear-gradient(90deg, #b07a2a, #e0b14f); }
+    .fill.bladder { background: linear-gradient(90deg, #4f7fd9, #7fb0ff); }
+    .fill.rep     { background: linear-gradient(90deg, #b04fa0, #f08cdc); }
+    .small { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+
+    /* management panel (top-right) */
+    #manage { top: 10px; right: 10px; width: 230px; }
+    #manage .price {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    #manage input[type=range] { width: 100%; margin: 2px 0 10px; accent-color: #ffd34d; }
+    #manage button { width: 100%; margin-bottom: 6px; }
+    #manage h4 {
+      margin: 10px 0 6px;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #cfe0b8;
+      opacity: 0.9;
+    }
+    /* staff row: [ + ]  title  [ - ] */
+    .staff {
+      display: grid;
+      grid-template-columns: 34px 1fr 34px;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .staff .staff-title { line-height: 1.25; }
+    .staff .small { font-size: 10px; opacity: 0.8; }
+    #manage button.pm {
+      width: 34px;
+      margin: 0;
+      padding: 6px 0;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    /* win / lose overlay */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.72);
+      text-align: center;
+      z-index: 10;
+    }
+    #overlay-title { font-size: 48px; font-weight: 800; color: #ffd34d; margin-bottom: 10px; }
+    #overlay-sub { font-size: 18px; }
+
+    button {
+      background: #ffd34d;
+      color: #3a2a00;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* progress fill inside a button (delivery countdown) */
+    button { position: relative; overflow: hidden; }
+    .btn-fill {
+      position: absolute; inset: 0 auto 0 0; width: 0%;
+      background: rgba(255, 255, 255, 0.4); pointer-events: none;
+      transition: width 0.15s linear;
+    }
+    .btn-label { position: relative; z-index: 1; }
+
+    /* clock + speed (bottom-left) */
+    #clock { bottom: 14px; left: 14px; text-align: center; min-width: 92px; }
+    #clock-time { font-size: 26px; font-weight: 800; color: #ffd34d; line-height: 1.1; }
+    #wage-pop {
+      position: absolute; bottom: 100%; left: 50%;
+      transform: translateX(-50%);
+      color: #ff7a7a; font-weight: 800; font-size: 18px;
+      opacity: 0; pointer-events: none; white-space: nowrap;
+      text-shadow: 0 1px 3px #000;
+    }
+    #wage-pop.show { animation: wagepop 2s ease-out; }
+    @keyframes wagepop {
+      0%   { opacity: 0; transform: translate(-50%, 8px); }
+      18%  { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -24px); }
+    }
+    #speed { display: flex; gap: 4px; margin-top: 7px; justify-content: center; }
+    button.spd { width: 30px; padding: 5px 0; font-size: 12px; box-shadow: none; }
+    button.spd.on { background: #fff; outline: 2px solid #ffd34d; }
+
+    /* bottom sandbox controls */
+    #controls {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage" resize></canvas>
+
+  <!-- Live stats -->
+  <div id="hud" class="panel">
+    <h3>🍺 Biergarten</h3>
+    <div class="row"><span>Gäste</span><b><span id="stat-people">0</span></b></div>
+    <div class="row"><span>Hunde</span><b><span id="stat-dogs">0</span></b></div>
+    <div class="row"><span>Geld</span><b><span id="stat-money">0 €</span></b></div>
+    <div class="row"><span>Bier verkauft</span><b><span id="stat-beers">0</span> 🍺</b></div>
+    <div class="row"><span>Geld / Besucher</span><b><span id="stat-permoney">0 €</span></b></div>
+    <div class="row"><span>Schankkräfte</span><b><span id="stat-bartenders">0</span> 🍺</b></div>
+    <div class="row"><span>Putzkräfte</span><b><span id="stat-cleaners">0</span> 🧹</b></div>
+    <div class="row"><span>Unrat</span><b><span id="stat-litter">0</span> 💩</b></div>
+
+    <div class="small">Bier-Tank</div>
+    <div class="gauge"><span class="fill beer" id="bar-beer-fill"></span><span class="lbl" id="bar-beer-txt">–</span></div>
+    <div class="small">Klo-Tank (Klowagen leert)</div>
+    <div class="gauge"><span class="fill toilet" id="bar-toilet-fill"></span><span class="lbl" id="bar-toilet-txt">–</span></div>
+    <div class="small">Verschmutzung (Putzkraft reinigt)</div>
+    <div class="gauge"><span class="fill dirt" id="meter-dirt-fill"></span><span class="lbl" id="meter-dirt-txt">0</span></div>
+
+    <div class="small">Zufriedenheit Ø</div>
+    <div class="gauge"><span class="fill sat" id="meter-sat-fill"></span><span class="lbl" id="meter-sat-txt">0</span></div>
+    <div class="small">Durst Ø</div>
+    <div class="gauge"><span class="fill thirst" id="meter-thirst-fill"></span><span class="lbl" id="meter-thirst-txt">0</span></div>
+    <div class="small">Blase Ø</div>
+    <div class="gauge"><span class="fill bladder" id="meter-bladder-fill"></span><span class="lbl" id="meter-bladder-txt">0</span></div>
+    <div class="small">Ruf (Langzeit) — Overall</div>
+    <div class="gauge"><span class="fill rep" id="meter-rep-fill"></span><span class="lbl" id="meter-rep-txt">0</span></div>
+  </div>
+
+  <!-- Management -->
+  <div id="manage" class="panel">
+    <h3>⚙️ Management</h3>
+    <div class="price"><span>Bierpreis</span><b><span id="price-val">4.00 €</span></b></div>
+    <input id="price-slider" type="range" min="1" max="8" step="0.5" value="4">
+    <div class="price"><span>Nachkaufmenge</span><b><span id="restock-val">40 L</span></b></div>
+    <input id="restock-slider" type="range" min="0" max="200" step="10" value="40">
+    <button id="btn-beer"><span class="btn-fill" id="btn-beer-fill"></span><span class="btn-label" id="btn-beer-label">🍺 Bier bestellen</span></button>
+    <button id="btn-klowagen"><span class="btn-fill" id="btn-klowagen-fill"></span><span class="btn-label" id="btn-klowagen-label">🚽 Klowagen</span></button>
+    <button id="btn-klo-upgrade">🚽 Klo-Tank ausbauen</button>
+    <button id="btn-table">🪑 Tisch</button>
+    <button id="btn-stand">🧍 Stehtisch</button>
+    <button id="btn-bench">🪵 Bierbank</button>
+
+    <h4>👥 Personal</h4>
+    <div class="staff">
+      <button id="btn-hire-bar" class="pm">＋</button>
+      <div class="staff-title">
+        <div>Schankkraft <b><span id="cnt-bar">1</span></b></div>
+        <div class="small" id="cost-bar">einmalig – · Lohn –</div>
+      </div>
+      <button id="btn-fire-bar" class="pm">－</button>
+    </div>
+    <div class="staff">
+      <button id="btn-hire-clean" class="pm">＋</button>
+      <div class="staff-title">
+        <div>Putzkraft <b><span id="cnt-clean">1</span></b></div>
+        <div class="small" id="cost-clean">einmalig – · Lohn –</div>
+      </div>
+      <button id="btn-fire-clean" class="pm">－</button>
+    </div>
+
+    <button id="btn-dogcatcher">🐕 Hundefänger</button>
+  </div>
+
+  <!-- Sandbox controls -->
+  <div id="controls">
+    <button id="btn-pause">⏸ Pause</button>
+    <button id="btn-ambient">🎵 Atmo</button>
+    <button id="btn-mute">🔊 Ton an</button>
+  </div>
+
+  <!-- Clock + speed (bottom-left) -->
+  <div id="clock" class="panel">
+    <div id="wage-pop"></div>
+    <div id="clock-time">10:00</div>
+    <div class="small" id="clock-note">geöffnet</div>
+    <div id="speed">
+      <button id="btn-speed-1" class="spd on">1×</button>
+      <button id="btn-speed-2" class="spd">2×</button>
+      <button id="btn-speed-4" class="spd">4×</button>
+      <button id="btn-speed-8" class="spd">8×</button>
+    </div>
+  </div>
+
+  <!-- Win / lose overlay -->
+  <div id="overlay">
+    <div>
+      <div id="overlay-title">–</div>
+      <div id="overlay-sub"></div>
+    </div>
+  </div>
+
+  <!-- Paper.js from CDN registers window.paper; the app module reads it. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.18/paper-full.min.js"></script>
+  <script type="module" src="dist/main.js"></script>
+</body>
+</html>
