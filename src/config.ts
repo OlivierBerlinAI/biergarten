@@ -419,10 +419,9 @@ export const GUEST = {
   moodLogThreshold: 4,
   /** Satisfaction lost per frame while queuing at the bar (waiting = unhappy). */
   satPerQueueFrame: -0.025,
-  /** Frames a guest will queue at the bar before giving up. */
-  queueGiveUp: 360,
-  /** Satisfaction hit when giving up the bar queue. */
-  satQueueGiveUp: -25,
+  /** A guest sticks it out in the bar queue until their satisfaction drops to
+   *  this — only then do they give up and leave (so they're fairly patient). */
+  queueGiveUpSat: 10,
   /** Satisfaction a guest leaves with when no seat ever frees up. */
   satNoSeat: 45,
   /** Frames a seatless guest wanders around looking before giving up. */

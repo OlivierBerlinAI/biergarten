@@ -103,7 +103,6 @@ export class Person {
   private pretzelDisappointed = false; // gave up on a pretzel — don't keep pestering the stand
   private decoMood = 0; // net mood drawn from vegetation so far (capped)
   private musicMood = 0; // net mood drawn from music so far (capped)
-  private queueTimer = 0;
   private serveTimer = 0;
   private serveDuration = 1;
   // Per-guest appetites: some get thirsty / hungry faster than others.
@@ -348,7 +347,6 @@ export class Person {
         this.noBeerAtBar(w);
         return;
       }
-      this.queueTimer = 0;
     }
     // Walk to the back of the queue; once there, start waiting.
     if (this.moveTo(w.bar.positionOf(this))) this.state = 'queuing';
@@ -369,10 +367,9 @@ export class Person {
       this.state = 'ordering';
       return;
     }
-    this.queueTimer++;
     this.changeSat(w, this._satisfaction + GUEST.satPerQueueFrame, 'wartet an der Theke');
-    if (this.queueTimer > GUEST.queueGiveUp) {
-      this.changeSat(w, this._satisfaction + GUEST.satQueueGiveUp, 'Warteschlange aufgegeben');
+    // They stay patient until the wait has actually made them quite unhappy.
+    if (this._satisfaction <= GUEST.queueGiveUpSat) {
       w.bar.leave(this);
       this.depart('Warteschlange aufgegeben'); // disappointed at the bar -> towel, then leave
     }
