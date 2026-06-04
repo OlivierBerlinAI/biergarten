@@ -3,7 +3,7 @@
 // drawable. Sprites are keyed by entity id; created/updated/removed each frame.
 
 import paper from '../scope.js';
-import { BAR, WC, DJ } from '../config.js';
+import { BAR, WC, DJ, type Towel } from '../config.js';
 import type { Game, Demolishable } from '../sim/game.js';
 import type { WcHouse } from '../sim/toilets.js';
 import type { Stand } from '../sim/stands.js';
@@ -773,31 +773,62 @@ export class Renderer {
   // --- towels (one per taken seat) ------------------------------------------
 
   private syncTowels(game: Game): void {
+    // Which guest sits on which claimed seat, so each towel uses their design.
+    const occupant = new Map<string, Person>();
+    for (const p of game.people) {
+      const ref = p.seatRef;
+      if (ref) occupant.set(`${ref.table}-${ref.seat}`, p);
+    }
     const live = new Set<string>();
-    game.seating.units.forEach((u, ti) => {
+    for (const u of game.seating.units) {
       const seats = game.seating.seatPositionsOf(u);
       u.taken.forEach((taken, si) => {
         if (!taken) return;
-        const key = `${ti}-${si}`;
+        const who = occupant.get(`${u.id}-${si}`);
+        // Key by occupant too, so a fresh guest on the same seat gets a new towel.
+        const key = `${u.id}-${si}-${who ? who.id : 'x'}`;
         live.add(key);
-        if (!this.towels.has(key)) this.towels.set(key, this.buildTowel(seats[si]!));
+        if (!this.towels.has(key)) this.towels.set(key, this.buildTowel(seats[si]!, who?.towel));
       });
-    });
+    }
     for (const [key, g] of this.towels) if (!live.has(key)) { g.remove(); this.towels.delete(key); }
   }
 
-  private buildTowel(p: { x: number; y: number }): paper.Group {
+  private buildTowel(p: { x: number; y: number }, towel?: Towel): paper.Group {
     const g = new paper.Group();
     this.towelsG.addChild(g);
-    const base = new paper.Path.Rectangle(new paper.Rectangle(p.x - 10, p.y - 5, 20, 11), new paper.Size(2, 2));
-    base.fillColor = col('#eef0f2');
+    const t: Towel = towel ?? { base: '#eef0f2', accent: '#d94f4f', pattern: 'vstripe2' };
+    const left = p.x - 10, top = p.y - 5, w = 20, h = 11;
+    const base = new paper.Path.Rectangle(new paper.Rectangle(left, top, w, h), new paper.Size(2, 2));
+    base.fillColor = col(t.base);
     base.strokeColor = col('#b9bdc2');
     base.strokeWidth = 1;
-    const s1 = new paper.Path.Rectangle(new paper.Rectangle(p.x - 9, p.y - 5, 4, 11));
-    s1.fillColor = col('#d94f4f');
-    const s2 = new paper.Path.Rectangle(new paper.Rectangle(p.x + 5, p.y - 5, 4, 11));
-    s2.fillColor = col('#4f7fd9');
-    g.addChildren([base, s1, s2]);
+    g.addChild(base);
+    const acc = col(t.accent);
+    const vStripe = (cx: number): void => {
+      const s = new paper.Path.Rectangle(new paper.Rectangle(cx - 2, top, 4, h));
+      s.fillColor = acc;
+      g.addChild(s);
+    };
+    const hStripe = (cy: number): void => {
+      const s = new paper.Path.Rectangle(new paper.Rectangle(left + 1, cy - 2, w - 2, 4));
+      s.fillColor = acc;
+      g.addChild(s);
+    };
+    const midY = p.y + 0.5; // vertical centre of the towel
+    switch (t.pattern) {
+      case 'plain': break;
+      case 'vstripe1': vStripe(p.x); break;
+      case 'vstripe2': vStripe(p.x - 6); vStripe(p.x + 6); break;
+      case 'hstripe': hStripe(midY); break;
+      case 'cross': vStripe(p.x); hStripe(midY); break;
+      case 'circle': {
+        const dot = new paper.Path.Circle(new paper.Point(p.x, midY), 3.4);
+        dot.fillColor = acc;
+        g.addChild(dot);
+        break;
+      }
+    }
     return g;
   }
 

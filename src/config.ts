@@ -57,6 +57,26 @@ export const SHIRTS = ['#d94f4f', '#4f7fd9', '#4fb86b', '#d9b14f', '#9b4fd9', '#
 /** Fur colours for dogs. */
 export const DOG_COLORS = ['#6b4a2a', '#3a3a3a', '#c9a16b', '#e8e2d4'];
 
+/**
+ * Beach towels: each guest rolls a base colour, an accent (stripe/motif)
+ * colour, and a pattern, so everyone's towel on the bench looks a bit different.
+ */
+export const TOWEL = {
+  base: ['#eef0f2', '#f3e6c8', '#cfe3f5', '#ead2ea', '#d8eccf', '#f6d6c4', '#e3e3e3', '#fbe9aa', '#cfeae6'],
+  accent: ['#d94f4f', '#4f7fd9', '#4fb86b', '#d9a23f', '#9b4fd9', '#3bbac9', '#d97fb1', '#2f3a2c', '#e8743b'],
+  /** plain = no stripes; v=vertical, h=horizontal; cross = both; circle = centre dot. */
+  patterns: ['plain', 'vstripe1', 'vstripe2', 'hstripe', 'cross', 'circle'],
+} as const;
+
+export type TowelPattern = (typeof TOWEL.patterns)[number];
+
+/** A single guest's towel design (plain data, generated in the Person ctor). */
+export interface Towel {
+  base: string;
+  accent: string;
+  pattern: TowelPattern;
+}
+
 /** Population caps. */
 export const MAX_PEOPLE = 24;
 export const MAX_DOGS = 8;

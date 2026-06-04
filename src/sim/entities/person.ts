@@ -2,7 +2,7 @@
 // reads pos + the render flags (mugVisible, beerLevel, opacity, bob, moving).
 
 import { stepToward, rand, chance, clamp, pick, type Vec } from '../vec.js';
-import { SKIN, SHIRTS, GUEST, LITTER, WORLD, STAFF, TOILET, CLOCK, PATH, DECO, DJ, ECONOMY } from '../../config.js';
+import { SKIN, SHIRTS, TOWEL, GUEST, LITTER, WORLD, STAFF, TOILET, CLOCK, PATH, DECO, DJ, ECONOMY, type Towel } from '../../config.js';
 import { FIRST_NAMES, LAST_NAMES } from '../names.js';
 import type { SeatRef } from '../seating.js';
 import type { Stall, WcHouse } from '../toilets.js';
@@ -73,6 +73,7 @@ export class Person {
   pos: Vec;
   readonly shirt: string;
   readonly skin: string;
+  readonly towel: Towel;
 
   // render flags (read by the view)
   mugVisible = false;
@@ -128,9 +129,14 @@ export class Person {
     this.pos = { x: entrance.x, y: entrance.y };
     this.shirt = pick(SHIRTS);
     this.skin = pick(SKIN);
+    this.towel = { base: pick(TOWEL.base), accent: pick(TOWEL.accent), pattern: pick(TOWEL.patterns) };
     this.bob = rand(0, Math.PI * 2);
   }
 
+  /** The seat this guest has claimed (towel down), or null. Read by the view. */
+  get seatRef(): SeatRef | null {
+    return this.seat;
+  }
   get satisfaction(): number {
     return this._satisfaction;
   }
