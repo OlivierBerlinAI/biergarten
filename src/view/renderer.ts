@@ -927,8 +927,11 @@ export class Renderer {
       live.add(d.id);
       let s = this.dogs.get(d.id);
       if (!s) { s = this.buildDog(d); this.dogs.set(d.id, s); }
-      s.g.position = new paper.Point(d.pos.x, d.pos.y);
-      s.g.scaling = new paper.Point(d.facing >= 0 ? 1 : -1, 1); // flip the whole dog to face travel direction
+      // Reflect by writing the matrix directly (built facing right). Setting
+      // `scaling = -1` each frame is unstable: paper re-decomposes the reflected
+      // matrix ambiguously and flips it back, which glitches.
+      const sx = d.facing >= 0 ? 1 : -1;
+      s.g.matrix = new paper.Matrix(sx, 0, 0, 1, d.pos.x, d.pos.y);
       s.tail.segments[1]!.point = new paper.Point(-20, -8 + Math.sin(d.wag) * 4);
     }
     for (const [id, s] of this.dogs) if (!live.has(id)) { s.g.remove(); this.dogs.delete(id); }
@@ -1000,8 +1003,10 @@ export class Renderer {
       live.add(t.id);
       let g = this.trucks.get(t.id);
       if (!g) { g = this.buildTruck(t); this.trucks.set(t.id, g); }
-      g.position = new paper.Point(t.pos.x, t.pos.y);
-      g.scaling = new paper.Point(t.facing >= 0 ? -1 : 1, 1); // face travel direction
+      // Built facing left; reflect to face right via an explicit matrix.
+      // (Setting `scaling = -1` glitches — see syncDogs for why.)
+      const sx = t.facing >= 0 ? -1 : 1;
+      g.matrix = new paper.Matrix(sx, 0, 0, 1, t.pos.x, t.pos.y);
     }
     for (const [id, g] of this.trucks) if (!live.has(id)) { g.remove(); this.trucks.delete(id); }
   }
