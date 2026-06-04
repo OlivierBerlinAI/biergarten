@@ -34,6 +34,8 @@ export class Controls {
   private draggingPretzelPrice = false;
   private draggingPretzelOrder = false;
   private draggingAd = false;
+  /** Collapse the build menu (assigned in setupBuildMenu); used by Esc. */
+  private closeBuildMenu: () => void = () => {};
 
   constructor(
     private readonly game: Game,
@@ -48,8 +50,10 @@ export class Controls {
     };
     document.addEventListener('pointerdown', startAudio, { once: true });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') actions.cancelPlace();
-      else if (e.code === 'Space' && !e.repeat) {
+      if (e.key === 'Escape') {
+        actions.cancelPlace();
+        this.closeOverlays();
+      } else if (e.code === 'Space' && !e.repeat) {
         e.preventDefault(); // pause/resume at the same speed
         const paused = actions.togglePause();
         const pb = document.getElementById('btn-pause');
@@ -179,6 +183,18 @@ export class Controls {
     for (const b of catButtons) {
       b.addEventListener('click', () => showCat(openCat === b.dataset.cat ? null : (b.dataset.cat ?? null)));
     }
+    this.closeBuildMenu = (): void => {
+      buildbar?.classList.add('hidden');
+      showCat(null);
+    };
+  }
+
+  /** Esc dismisses every open pop-over: the dialog windows + the build menu.
+   *  The modal start / win-lose overlays are intentionally left alone. */
+  private closeOverlays(): void {
+    const ids = ['settingswin', 'gamewin', 'pretzelwin', 'logwin', 'guestwin', 'upgradewin'];
+    for (const id of ids) document.getElementById(id)?.classList.add('hidden');
+    this.closeBuildMenu();
   }
 
   /** Refresh dynamic labels and disabled states. Called every render frame. */
