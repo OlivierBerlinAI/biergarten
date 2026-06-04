@@ -42,19 +42,11 @@ const MOVING_STATES: ReadonlySet<PersonState> = new Set<PersonState>([
   'leaving',
 ]);
 
-const BEER_SECURED: ReadonlySet<PersonState> = new Set<PersonState>(['ordering', 'toSeat', 'drinking']);
-
-// While fetching/eating a pretzel the guest is already dealing with their
-// hunger, so the "too hungry → go home" hard cap must not fire on them.
-const EATING_SECURED: ReadonlySet<PersonState> = new Set<PersonState>(['toStand', 'eating']);
-
-// States in which a guest must NOT rage-quit over max thirst: mid beer- or
-// pretzel-transaction, or walking back to their seat / out. They finish what
-// they're doing and head to the bar for a beer right after (see chilling) — so
-// eating a pretzel can no longer make a thirsty guest abandon the garden.
-const THIRST_SAFE: ReadonlySet<PersonState> = new Set<PersonState>([
-  ...BEER_SECURED, ...EATING_SECURED, 'goSit', 'fetchTowel', 'leaving',
-]);
+// A too-unhappy guest gives up only from these "settled" states — while seated
+// (chilling) or still hunting for a seat (looking). In every other state they're
+// mid-transaction or in transit (getting beer/food, on the toilet, walking back)
+// and about to feel better, so they finish what they're doing first.
+const CAN_GIVE_UP: ReadonlySet<PersonState> = new Set<PersonState>(['looking', 'chilling']);
 
 const STATUS_LABEL: Record<PersonState, string> = {
   arriving: 'kommt an',
@@ -221,16 +213,15 @@ export class Person {
     // Paths speed guests up; off the path they trudge along slower.
     this.curSpeed = this.speed * (w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult);
     this._thirst = clamp(this._thirst + GUEST.thirstPerFrame, 0, 100);
-    if (this._thirst >= 100 && !THIRST_SAFE.has(this.state)) {
-      this.frustratedLeave(w, GUEST.satMaxThirst, 'zu lange durstig');
-    }
-
     this._hunger = clamp(this._hunger + GUEST.hungerPerFrame, 0, 100);
-    if (this._hunger >= 100 && this.canReactToHunger()) {
-      // Starving: grab a pretzel if one is reachable, otherwise head home.
-      if (this.seat && w.foodAvailable() && !this.pretzelDisappointed) this.goEat(w);
-      else this.frustratedLeave(w, GUEST.satMaxHunger, 'zu hungrig');
-    }
+
+    // Unmet thirst/hunger past the comfort level sour the mood — the further
+    // past, the faster. No hard cap yanks them out any more; they just grow
+    // unhappy and leave below the general satisfaction floor (checked below).
+    const tExcess = (this._thirst - GUEST.thirstComfort) / (100 - GUEST.thirstComfort);
+    const hExcess = (this._hunger - GUEST.hungerComfort) / (100 - GUEST.hungerComfort);
+    if (tExcess > 0) this.changeSat(w, this._satisfaction - GUEST.satDiscomfortPerFrame * tExcess, 'großer Durst');
+    if (hExcess > 0) this.changeSat(w, this._satisfaction - GUEST.satDiscomfortPerFrame * hExcess, 'großer Hunger');
 
     const piles = w.litter.countNear(this.pos, LITTER.nearRadius);
     if (piles > 0) {
@@ -251,6 +242,11 @@ export class Person {
     this.musicMood = md.applied;
     if (md.delta !== 0) {
       this.changeSat(w, this._satisfaction + md.delta, music > 0 ? 'gute Musik' : 'störende Musik');
+    }
+
+    // Too unhappy, whatever the cause (thirst, hunger, dirt, waiting, …) → leave.
+    if (this._satisfaction <= GUEST.satLeave && CAN_GIVE_UP.has(this.state)) {
+      this.frustratedLeave(w, this._satisfaction, 'zu unzufrieden');
     }
 
     let alive = true;
@@ -706,18 +702,6 @@ export class Person {
   private backToSeat(): void {
     this.standServeTimer = 0;
     this.state = this.seat ? 'goSit' : 'leaving';
-  }
-
-  /** States in which a starving guest may react (not mid beer/pretzel/exit). */
-  private canReactToHunger(): boolean {
-    return (
-      this.state !== 'leaving' &&
-      this.state !== 'fetchTowel' &&
-      this.state !== 'inToilet' &&
-      this.state !== 'toToilet' &&
-      !BEER_SECURED.has(this.state) &&
-      !EATING_SECURED.has(this.state)
-    );
   }
 
   private aimForFreeSeat(w: World): boolean {

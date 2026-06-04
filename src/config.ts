@@ -422,8 +422,17 @@ export const GUEST = {
   lookMax: 480,
   /** Satisfaction a guest is left with when there's no beer (frustrated). */
   satNoBeer: 20,
-  /** Satisfaction a guest is left with when maxed-out thirsty and still dry. */
-  satMaxThirst: 18,
+  /**
+   * Discomfort: above these levels, thirst/hunger gnaw at the mood. The loss
+   * scales from 0 at the comfort level to satDiscomfortPerFrame at fully
+   * parched/starving — so an unmet need slowly makes a guest unhappy instead of
+   * yanking them out the moment a bar hits 100.
+   */
+  thirstComfort: 70,
+  hungerComfort: 70,
+  satDiscomfortPerFrame: 0.1, // per source (thirst, hunger) at full excess
+  /** Below this satisfaction a guest gives up and goes home — whatever the cause. */
+  satLeave: 15,
   /** Satisfaction hit on finding the toilet full/too dirty to use. */
   satToiletUnusable: -12,
   /** Chance of a "malheur" (an accident) on the way out after an unusable toilet. */
@@ -449,8 +458,6 @@ export const GUEST = {
   hungerPerFrame: 0.02,
   /** Above this hunger a seated guest goes for a pretzel — if any is offered. */
   hungerWantPretzel: 55,
-  /** Satisfaction a guest leaves with when starving and no food is offered. */
-  satMaxHunger: 18,
   /** Hunger removed by eating one pretzel. */
   hungerPerPretzel: 60,
   /** Frames it takes to eat a pretzel at the stand. */
