@@ -26,8 +26,9 @@ interface DogSprite { g: paper.Group; tail: paper.Path; }
 interface SimpleSprite { g: paper.Group; body: paper.Path; }
 interface TapGauge { fill: paper.Path; count: paper.PointText; left: number; top: number; w: number; h: number; }
 interface DirtBar { fill: paper.Path; left: number; top: number; w: number; h: number; }
-interface BarSprite { g: paper.Group; taps: number; gauges: TapGauge[]; }
-interface WcSprite { g: paper.Group; stalls: number; gauges: TapGauge[]; dirts: DirtBar[] }
+interface PlusButton { pill: paper.Path; text: paper.PointText }
+interface BarSprite { g: paper.Group; taps: number; gauges: TapGauge[]; plus?: PlusButton }
+interface WcSprite { g: paper.Group; stalls: number; gauges: TapGauge[]; dirts: DirtBar[]; plus?: PlusButton }
 interface TankSprite { g: paper.Group; fill: paper.Path; kind: 'beer' | 'waste'; left: number; bottom: number; w: number; h: number; }
 interface DecoSprite { g: paper.Group; blobs: paper.Path[]; kind: DecoKind; }
 interface DjSprite { g: paper.Group; rings: paper.Path[]; }
@@ -120,6 +121,7 @@ export class Renderer {
         const txt = len > 0 ? String(len) : '';
         if (tg.count.content !== txt) tg.count.content = txt;
       }
+      this.stylePlusButton(s.plus, game.eco.canAfford(game.eco.tapCost()));
     }
     for (const [id, s] of this.bars) if (!live.has(id)) { s.g.remove(); this.bars.delete(id); }
   }
@@ -152,10 +154,10 @@ export class Renderer {
       gauges.push(this.buildTapGauge(g, tp.x, game.bar.gaugeY(a)));
     }
     // "+" add-tap button with its price (omitted once the building is full)
-    if (a.taps.length < BAR.maxTaps) {
-      this.buildPlusButton(g, game.bar.plusPos(a), `＋ ${game.eco.tapCost()} €`);
-    }
-    return { g, taps: a.taps.length, gauges };
+    const plus = a.taps.length < BAR.maxTaps
+      ? this.buildPlusButton(g, game.bar.plusPos(a), `＋ ${game.eco.tapCost()} €`)
+      : undefined;
+    return { g, taps: a.taps.length, gauges, plus };
   }
 
   private buildTapGauge(g: paper.Group, cx: number, cy: number): TapGauge {
@@ -201,6 +203,7 @@ export class Renderer {
         db.fill.visible = d > 0.001;
         if (db.fill.visible) db.fill.bounds = new paper.Rectangle(db.left, db.top, db.w * d, db.h);
       }
+      this.stylePlusButton(s.plus, game.eco.canAfford(game.eco.stallCost()));
     }
     for (const [id, s] of this.wcs) if (!live.has(id)) { s.g.remove(); this.wcs.delete(id); }
   }
@@ -242,14 +245,15 @@ export class Renderer {
       dirts.push(this.buildDirtBar(g, sp.x, game.toilets.gaugeY(h) + 10));
     }
     // "+" add-toilet button with its price (omitted once the house is full)
-    if (h.stalls.length < WC.maxStalls) {
-      this.buildPlusButton(g, game.toilets.plusPos(h), `＋ ${game.eco.stallCost()} €`);
-    }
-    return { g, stalls: h.stalls.length, gauges, dirts };
+    const plus = h.stalls.length < WC.maxStalls
+      ? this.buildPlusButton(g, game.toilets.plusPos(h), `＋ ${game.eco.stallCost()} €`)
+      : undefined;
+    return { g, stalls: h.stalls.length, gauges, dirts, plus };
   }
 
-  /** A small green pill button showing "+ <price> €", clickable in the world. */
-  private buildPlusButton(g: paper.Group, pos: { x: number; y: number }, label: string): void {
+  /** A small green pill button showing "+ <price> €", clickable in the world.
+   *  Returns its parts so the sync pass can grey it out when it's unaffordable. */
+  private buildPlusButton(g: paper.Group, pos: { x: number; y: number }, label: string): PlusButton {
     const w = 52, h = 22;
     const pill = new paper.Path.Rectangle(new paper.Rectangle(pos.x - w / 2, pos.y - h / 2, w, h), new paper.Size(11, 11));
     pill.fillColor = col('#3f9d57');
@@ -260,6 +264,15 @@ export class Renderer {
       fontSize: 11, fontWeight: 'bold', justification: 'center',
     });
     g.addChildren([pill, text]);
+    return { pill, text };
+  }
+
+  /** Green when affordable, muted grey when the player can't pay for it. */
+  private stylePlusButton(plus: PlusButton | undefined, affordable: boolean): void {
+    if (!plus) return;
+    plus.pill.fillColor = col(affordable ? '#3f9d57' : '#5b5f63');
+    plus.pill.opacity = affordable ? 1 : 0.6;
+    plus.text.opacity = affordable ? 1 : 0.7;
   }
 
   /** A slim brown dirtiness bar under a cabin's progress gauge. */
