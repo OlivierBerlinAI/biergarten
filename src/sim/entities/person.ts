@@ -94,7 +94,7 @@ export class Person {
   private drinkTimer = 0;
   private drinkDuration = 1;
   private waitTimer = 0;
-  private lingerRounds = 0; // relax rounds spent winding down (resets on a fresh beer)
+  private visitTimer = rand(GUEST.visitMin, GUEST.visitMax); // max time in the garden
   private toiletDuration = 1; // frames of the current toilet visit (dirt is spread over it)
   private toiletWait = 0; // frames spent waiting in the toilet queue (for the malheur roll)
   private toiletStall: Stall | null = null; // the stall currently occupied, if any
@@ -219,6 +219,7 @@ export class Person {
     this.curSpeed = this.speed * (w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult);
     this._thirst = clamp(this._thirst + this.thirstRate, 0, 100);
     this._hunger = clamp(this._hunger + this.hungerRate, 0, 100);
+    this.visitTimer--; // counts down their whole stay; acted on from chilling
 
     // Beer in the stomach slowly passes into the bladder (so it fills gradually
     // long after the drink, not all at once while drinking). A full bladder
@@ -430,7 +431,6 @@ export class Person {
     if (chance(0.008)) w.play('sip');
     if (this.drinkTimer <= 0) {
       this._thirst = 0; // a finished beer leaves the guest fully refreshed
-      this.lingerRounds = 0; // a fresh beer revives the urge to stay a while
       this.mugVisible = false;
       this.enterChilling();
     }
@@ -565,47 +565,31 @@ export class Person {
   }
 
   private chilling(w: World): void {
+    // Urgent: empty a full bladder first.
     if (this._bladder >= GUEST.bladderToilet) {
       w.log('mood', `#${this.id} muss mal – geht aufs Klo`, undefined, this.id);
       this.state = 'toToilet'; // walk to the toilet; find out there if it's usable
       return;
     }
+    // Reasons to head home — even with money left and a thirst:
+    if (!w.eco.salesOpen) { this.depart('Garten schließt'); return; }
+    if (this.visitTimer <= 0) { this.depart('Zeit ist um, muss weiter'); return; }
+    // Peckish and a stand is open — grab a pretzel.
     if (this._hunger >= GUEST.hungerWantPretzel && w.foodAvailable() && !this.pretzelDisappointed) {
-      this.goEat(w); // peckish and a stand is open — go grab a pretzel
+      this.goEat(w);
       return;
     }
-    if (this.wantsAnotherBeer(w)) {
-      // From the seat a guest can't tell whether there's beer — they walk to
-      // the bar to find out (and only learn of an empty tank there). At closing
-      // time it's known, so they just head home.
-      if (w.eco.salesOpen) {
+    // Thirsty: fetch another beer if they can still afford one, otherwise
+    // they're out of money and call it a day. (Being un-thirsty is NOT a reason
+    // to leave — they just keep relaxing until time/money/closing/mood says so.)
+    if (this._thirst >= GUEST.thirstWantBeer) {
+      if (this.wallet_ >= w.eco.beerPrice) {
         this.mugVisible = false;
-        this.state = 'toBar';
+        this.state = 'toBar'; // they only learn of an empty tank at the counter
       } else {
-        this.depart('Feierabend – kein Bier mehr'); // wants another but it's past last call
+        this.depart('kein Geld mehr');
       }
-      return;
     }
-    this.waitTimer--;
-    if (this.waitTimer > 0) return;
-    // Relaxed enough — decide whether to linger a bit longer or head home.
-    if (w.eco.salesOpen && this.decideToStay()) {
-      this.lingerRounds++;
-      this.waitTimer = Math.floor(rand(GUEST.relaxMin, GUEST.relaxMax));
-      w.log('mood', `#${this.id} bleibt noch ein Weilchen sitzen`, undefined, this.id);
-    } else if (w.eco.salesOpen) {
-      this.depart('hat genug entspannt, geht zufrieden heim');
-    } else {
-      this.depart('Feierabend, geht heim');
-    }
-  }
-
-  /** Content guests linger for another relaxed round; the chance fades each
-   *  round so nobody camps forever, and grumpy guests just leave. */
-  private decideToStay(): boolean {
-    const mood = clamp((this._satisfaction - 40) / 60, 0, 1); // 0 at sat≤40 … 1 at 100
-    const fade = Math.pow(0.6, this.lingerRounds); // 1, 0.6, 0.36, …
-    return chance(mood * 0.7 * fade);
   }
 
   /** Walk to the pretzel stand; on arrival pay and eat (or bail if sold out). */
@@ -720,10 +704,6 @@ export class Person {
 
   // --- helpers --------------------------------------------------------------
 
-  private wantsAnotherBeer(w: World): boolean {
-    return this._thirst >= GUEST.thirstWantBeer && this.wallet_ >= w.eco.beerPrice;
-  }
-
   /** Head off to queue at a pretzel stand (no-op without a seat). */
   private goEat(w: World): void {
     if (!this.seat || w.stands.count === 0) return;
@@ -765,7 +745,6 @@ export class Person {
   }
 
   private enterChilling(): void {
-    this.waitTimer = Math.floor(rand(GUEST.relaxMin, GUEST.relaxMax));
     this.state = 'chilling';
   }
 

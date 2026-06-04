@@ -399,9 +399,12 @@ export const GUEST = {
    *  own rate in this range, so some get thirsty much faster than others. */
   thirstPerFrameMin: 0.01,
   thirstPerFrameMax: 0.0225,
-  /** Frames a guest relaxes at the table before getting thirsty enough / leaving. */
-  relaxMin: 500,
-  relaxMax: 1100,
+  /** Max time a guest will spend in the garden before they "have to move on",
+   *  rolled per guest (frames; 1200 = one in-game hour). They leave when this is
+   *  up even if they still have money and a thirst — otherwise they stay and keep
+   *  drinking until they run out of money, get unhappy, or the garden closes. */
+  visitMin: 2400,
+  visitMax: 7200,
   bladderStartMax: 20,
   /** A drunk beer doesn't hit the bladder directly: it fills the guest's
    *  "stomach" by this much, which then trickles into the bladder over time. */
