@@ -403,8 +403,8 @@ export const GUEST = {
    *  rolled per guest (frames; 1200 = one in-game hour). They leave when this is
    *  up even if they still have money and a thirst — otherwise they stay and keep
    *  drinking until they run out of money, get unhappy, or the garden closes. */
-  visitMin: 2400,
-  visitMax: 7200,
+  visitMin: 6000,
+  visitMax: 15600,
   bladderStartMax: 20,
   /** A drunk beer doesn't hit the bladder directly: it fills the guest's
    *  "stomach" by this much, which then trickles into the bladder over time. */
