@@ -48,6 +48,14 @@ const BEER_SECURED: ReadonlySet<PersonState> = new Set<PersonState>(['ordering',
 // hunger, so the "too hungry → go home" hard cap must not fire on them.
 const EATING_SECURED: ReadonlySet<PersonState> = new Set<PersonState>(['toStand', 'eating']);
 
+// States in which a guest must NOT rage-quit over max thirst: mid beer- or
+// pretzel-transaction, or walking back to their seat / out. They finish what
+// they're doing and head to the bar for a beer right after (see chilling) — so
+// eating a pretzel can no longer make a thirsty guest abandon the garden.
+const THIRST_SAFE: ReadonlySet<PersonState> = new Set<PersonState>([
+  ...BEER_SECURED, ...EATING_SECURED, 'goSit', 'fetchTowel', 'leaving',
+]);
+
 const STATUS_LABEL: Record<PersonState, string> = {
   arriving: 'kommt an',
   looking: 'sucht Platz',
@@ -213,12 +221,7 @@ export class Person {
     // Paths speed guests up; off the path they trudge along slower.
     this.curSpeed = this.speed * (w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult);
     this._thirst = clamp(this._thirst + GUEST.thirstPerFrame, 0, 100);
-    if (
-      this._thirst >= 100 &&
-      this.state !== 'leaving' &&
-      this.state !== 'fetchTowel' &&
-      !BEER_SECURED.has(this.state)
-    ) {
+    if (this._thirst >= 100 && !THIRST_SAFE.has(this.state)) {
       this.frustratedLeave(w, GUEST.satMaxThirst, 'zu lange durstig');
     }
 
