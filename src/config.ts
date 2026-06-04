@@ -267,7 +267,7 @@ export const DOGCATCHER = {
 /** Win / lose thresholds (money in euros). */
 export const GAME_OVER = {
   loseMoney: -100,
-  winMoney: 1_000_000,
+  winMoney: 10_000,
 } as const;
 
 /** How a departing guest's satisfaction moves the long-term reputation. */

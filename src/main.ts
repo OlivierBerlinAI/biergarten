@@ -95,6 +95,13 @@ window.onload = (): void => {
   document.getElementById('btn-start-blank')?.addEventListener('click', () => beginGame(true));
   document.getElementById('btn-restart')?.addEventListener('click', () => location.reload());
   document.getElementById('btn-game-restart')?.addEventListener('click', () => location.reload());
+  // Keep playing after a win: resume the same garden (a later bankruptcy can
+  // still end it, so allow the outcome overlay to fire again).
+  document.getElementById('btn-keep-playing')?.addEventListener('click', () => {
+    game.continueAfterWin();
+    hud.hideOutcome();
+    outcomeShown = false;
+  });
 
   paper.view.onFrame = (): void => {
     if (started && !paused && !game.ended) {

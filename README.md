@@ -65,8 +65,8 @@ frei, laufen Gäste eine Weile herum und gehen dann wieder. Mit der **Nachkauf-
 menge** (Slider) bestimmst du, wie viel Bier eine Bestellung liefert — und du
 **startest ohne Bier**.
 
-**Ziel:** **1.000.000 €** erwirtschaften (Sieg). Bei **−100 €** Schulden ist das
-Spiel verloren.
+**Ziel:** **10.000 €** erwirtschaften (Sieg — danach kannst du **weiterspielen**
+oder eine neue Runde starten). Bei **−100 €** Schulden ist das Spiel verloren.
 
 Anzeigen für Zufriedenheit, Durst, Blase, Geld/Besucher und den Gesamt-Ruf
 findest du oben links; auf dem Ausschank läuft ein Zapf-Balken, am Klohaus ein

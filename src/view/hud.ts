@@ -59,11 +59,20 @@ export class Hud {
     if (sub) {
       sub.textContent =
         outcome === 'win'
-          ? 'Du hast 1.000.000 € erwirtschaftet. Prost! 🍺'
+          ? 'Du hast 10.000 € erwirtschaftet. Prost! 🍺 Weiterspielen oder eine neue Runde?'
           : 'Du stehst mit über 100 € Schulden da. Game over.';
     }
+    // "Weiterspielen" only makes sense after a win, not a bankruptcy.
+    const keep = this.el('btn-keep-playing');
+    if (keep) keep.style.display = outcome === 'win' ? '' : 'none';
     const overlay = this.el('overlay');
     if (overlay) overlay.style.display = 'flex';
+  }
+
+  /** Dismiss the win/lose overlay (used when the player keeps playing). */
+  hideOutcome(): void {
+    const overlay = this.el('overlay');
+    if (overlay) overlay.style.display = 'none';
   }
 
   // --- diffed DOM helpers ---------------------------------------------------

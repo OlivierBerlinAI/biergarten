@@ -88,6 +88,7 @@ export class Game implements World {
 
   ended = false;
   outcome: Outcome | null = null;
+  private winClaimed = false; // set once the player keeps playing past a win
 
   /** Total guests that have arrived (for stats / tests). */
   arrivalsTotal = 0;
@@ -261,10 +262,19 @@ export class Game implements World {
     }
 
     const o = this.eco.outcome();
-    if (o) {
+    // A win only stops the game once — after "keep playing" it never re-fires
+    // (the player keeps the same garden as a sandbox); a loss always stops it.
+    if (o === 'lose' || (o === 'win' && !this.winClaimed)) {
       this.ended = true;
       this.outcome = o;
     }
+  }
+
+  /** Player chose to keep playing after winning: resume the same garden. */
+  continueAfterWin(): void {
+    this.winClaimed = true;
+    this.ended = false;
+    this.outcome = null;
   }
 
   // --- World impl -----------------------------------------------------------
