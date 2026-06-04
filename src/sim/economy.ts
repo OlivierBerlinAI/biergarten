@@ -2,7 +2,7 @@
 // long-term reputation. Pure logic, no rendering — entities and the UI talk to
 // this single source of truth.
 
-import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START, TOILET } from '../config.js';
+import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START } from '../config.js';
 
 export type Outcome = 'win' | 'lose';
 
@@ -19,17 +19,19 @@ export class GameState {
 
   bartenders: number = START.bartenders;
   cleaners: number = START.cleaners;
+  gardeners = 0;
+  /** Hired pretzel sellers and DJs (assigned one per stand / booth by Game). */
+  sellers = 0;
+  djWorkers = 0;
 
-  /** Start with an empty beer tank — you must order beer before you can sell it. */
-  readonly beer: Tank = { current: 0, capacity: ECONOMY.beerTankCapacity };
+  /** Start with a small stock of beer so the garden can sell from the off.
+   *  Capacity is the sum of placed beer tanks (Game keeps it in sync). */
+  readonly beer: Tank = { current: START.beer, capacity: ECONOMY.beerTankUnit };
   /** How much beer the "Bier bestellen" button orders (set by the slider). */
   restockAmount: number = ECONOMY.restockDefault;
-  /** Waste tank — fills per use, only the Klowagen empties it. */
-  readonly toilet: Tank = { current: 0, capacity: ECONOMY.toiletCapacity };
-  /** Dirtiness (Verschmutzung, 0..100) — rises per use, only cleaners reduce it. */
-  toiletDirt = 0;
-  /** How many waste-tank upgrades have been bought (each doubles capacity). */
-  toiletUpgradeLevel = 0;
+  /** Shared waste tank — fills per use across all WCs, only the Klowagen empties it.
+   *  Capacity is the sum of placed waste tanks (Game keeps it in sync). */
+  readonly toilet: Tank = { current: 0, capacity: ECONOMY.wasteTankUnit };
 
   /** Set false outside selling hours (after last call). */
   salesOpen = true;
@@ -38,13 +40,25 @@ export class GameState {
   lastWage = 0;
   wagePayments = 0;
 
+  // --- pretzels (food) -----------------------------------------------------
+  /** Fresh pretzels in stock today. Goes stale (binned) at the next day. */
+  pretzelStock = 0;
+  /** Price guests pay for a pretzel (set by the slider). */
+  pretzelPrice: number = ECONOMY.pretzelPrice.start;
+  /** How many pretzels the "Brezn bestellen" button (and auto-delivery) order. */
+  pretzelOrderAmount: number = ECONOMY.pretzelOrderDefault;
+  /** When on, a fresh batch (pretzelOrderAmount) is delivered each new day. */
+  pretzelAutoDeliver = false;
+
+  /** Daily advertising spend (set by the slider); buys a reputation bump at dawn. */
+  adBudget: number = ECONOMY.adBudget.start;
+
   // running totals for the stats display
   beersSold = 0;
+  pretzelsSold = 0;
   private totalEarned = 0;
   private guestsDeparted = 0;
 
-  // bar service: how many guests are being served right now (<= bartenders)
-  private serving = 0;
   private wageTimer = STAFF.wageIntervalFrames;
 
   // --- beer ----------------------------------------------------------------
@@ -97,45 +111,147 @@ export class GameState {
     this.toilet.current = Math.max(0, this.toilet.current - litres);
   }
 
+  // --- pretzels (food) -----------------------------------------------------
+
+  setPretzelPrice(price: number): void {
+    this.pretzelPrice = Math.max(ECONOMY.pretzelPrice.min, Math.min(ECONOMY.pretzelPrice.max, price));
+  }
+
+  setPretzelOrderAmount(n: number): void {
+    this.pretzelOrderAmount = Math.max(0, Math.min(ECONOMY.pretzelCapacity, Math.round(n)));
+  }
+
+  /** Whole pretzels the next order will deliver (limited by remaining room). */
+  plannedPretzelOrder(): number {
+    return Math.min(this.pretzelOrderAmount, ECONOMY.pretzelCapacity - this.pretzelStock);
+  }
+
+  /** Baker cost of an order of `amount` pretzels (defaults to the planned order). */
+  pretzelOrderCost(amount: number = this.plannedPretzelOrder()): number {
+    return Math.ceil(Math.max(0, amount) * ECONOMY.pretzelWholesale);
+  }
+
+  /** Add delivered pretzels to the stock (capped at capacity). */
+  addPretzels(n: number): void {
+    this.pretzelStock = Math.min(ECONOMY.pretzelCapacity, this.pretzelStock + n);
+  }
+
+  /** A stand can hand out a pretzel only if some are in stock. */
+  canSellPretzel(): boolean {
+    return this.pretzelStock >= 1;
+  }
+
+  /** Sell one pretzel at the current price. Returns false if sold out. */
+  sellPretzel(): boolean {
+    if (!this.canSellPretzel()) return false;
+    this.pretzelStock -= 1;
+    this.money += this.pretzelPrice;
+    this.totalEarned += this.pretzelPrice;
+    this.pretzelsSold += 1;
+    return true;
+  }
+
+  pretzelStandCost(): number {
+    return ECONOMY.pretzelStandCost;
+  }
+
+  ausschankCost(): number {
+    return ECONOMY.ausschankCost;
+  }
+
+  tapCost(): number {
+    return ECONOMY.tapCost;
+  }
+
+  wcHouseCost(): number {
+    return ECONOMY.wcHouseCost;
+  }
+
+  stallCost(): number {
+    return ECONOMY.stallCost;
+  }
+
+  setAdBudget(n: number): void {
+    this.adBudget = Math.max(ECONOMY.adBudget.min, Math.min(ECONOMY.adBudget.max, Math.round(n)));
+  }
+
+  /**
+   * Spend the daily advertising budget for a reputation bump (capped at 100).
+   * Spends only what's actually affordable. Returns what happened, to log it.
+   */
+  runAdvertising(): { spent: number; repGain: number } {
+    const spend = Math.min(this.adBudget, Math.max(0, this.money));
+    if (spend <= 0) return { spent: 0, repGain: 0 };
+    this.money -= spend;
+    const repGain = Math.min(100 - this.reputation, spend * ECONOMY.adRepPerEuro);
+    this.reputation = Math.min(100, this.reputation + repGain);
+    return { spent: spend, repGain };
+  }
+
+  /** Flip the daily auto-delivery on/off; returns the new state. */
+  toggleAutoDeliver(): boolean {
+    this.pretzelAutoDeliver = !this.pretzelAutoDeliver;
+    return this.pretzelAutoDeliver;
+  }
+
+  /**
+   * A new in-game day begins: yesterday's pretzels are stale and get binned,
+   * and — if auto-delivery is on — a fresh batch is delivered and charged for.
+   * Returns what happened so the caller can log it.
+   */
+  newDay(): { discarded: number; delivered: number; cost: number } {
+    const discarded = this.pretzelStock;
+    this.pretzelStock = 0;
+    let delivered = 0;
+    let cost = 0;
+    if (this.pretzelAutoDeliver) {
+      delivered = Math.min(ECONOMY.pretzelCapacity, this.pretzelOrderAmount);
+      if (delivered > 0) {
+        cost = this.pretzelOrderCost(delivered);
+        this.money -= cost; // charged like wages: may dip the balance
+        this.pretzelStock = delivered;
+      }
+    }
+    return { discarded, delivered, cost };
+  }
+
   // --- toilet --------------------------------------------------------------
 
-  /** Hard block: the waste tank has no room. (Dirtiness is handled per guest.) */
+  /** Hard block: the shared waste tank has no room. (Dirtiness is per WC house.) */
   toiletTankFull(): boolean {
     return this.toilet.current >= this.toilet.capacity;
-  }
-
-  /** Record a toilet visit: it only makes the toilet dirtier. */
-  useToilet(): void {
-    this.toiletDirt = Math.min(100, this.toiletDirt + TOILET.dirtPerUse);
-  }
-
-  /** A cleaner scrubs the toilet (reduces dirtiness). */
-  cleanToiletDirt(amount: number): void {
-    this.toiletDirt = Math.max(0, this.toiletDirt - amount);
   }
 
   klowagenCost(): number {
     return ECONOMY.klowagenCost;
   }
 
-  /** Cost of the next toilet-tank upgrade, or null if maxed out. */
-  toiletUpgradeCost(): number | null {
-    const costs = ECONOMY.toiletUpgradeCosts;
-    return this.toiletUpgradeLevel < costs.length ? costs[this.toiletUpgradeLevel]! : null;
+  beerTankCost(): number {
+    return ECONOMY.beerTankCost;
   }
 
-  canUpgradeToilet(): boolean {
-    const c = this.toiletUpgradeCost();
-    return c !== null && this.money >= c;
+  wasteTankCost(): number {
+    return ECONOMY.wasteTankCost;
   }
 
-  /** Buy the next upgrade: doubles the waste-tank capacity. */
-  upgradeToilet(): boolean {
-    const c = this.toiletUpgradeCost();
-    if (c === null || !this.spend(c)) return false;
-    this.toilet.capacity *= 2;
-    this.toiletUpgradeLevel += 1;
-    return true;
+  bushCost(): number {
+    return ECONOMY.bushCost;
+  }
+
+  flowerCost(): number {
+    return ECONOMY.flowerCost;
+  }
+
+  treeCost(): number {
+    return ECONOMY.treeCost;
+  }
+
+  djCost(): number {
+    return ECONOMY.djCost;
+  }
+
+  pathCost(): number {
+    return ECONOMY.pathCost;
   }
 
   dogCatcherCost(): number {
@@ -184,6 +300,66 @@ export class GameState {
     return STAFF.cleanerWage;
   }
 
+  gardenerHireCost(): number {
+    return STAFF.gardenerHire;
+  }
+
+  gardenerWage(): number {
+    return STAFF.gardenerWage;
+  }
+
+  sellerHireCost(): number {
+    return STAFF.sellerHire;
+  }
+
+  sellerWage(): number {
+    return STAFF.sellerWage;
+  }
+
+  djHireCost(): number {
+    return STAFF.djHire;
+  }
+
+  djWage(): number {
+    return STAFF.djWage;
+  }
+
+  hireSeller(): boolean {
+    if (!this.spend(STAFF.sellerHire)) return false;
+    this.sellers += 1;
+    return true;
+  }
+
+  fireSeller(): boolean {
+    if (this.sellers <= 0) return false;
+    this.sellers -= 1;
+    return true;
+  }
+
+  hireDj(): boolean {
+    if (!this.spend(STAFF.djHire)) return false;
+    this.djWorkers += 1;
+    return true;
+  }
+
+  fireDj(): boolean {
+    if (this.djWorkers <= 0) return false;
+    this.djWorkers -= 1;
+    return true;
+  }
+
+  hireGardener(): boolean {
+    if (!this.spend(STAFF.gardenerHire)) return false;
+    this.gardeners += 1;
+    return true;
+  }
+
+  fireGardener(): boolean {
+    if (this.gardeners <= 0) return false;
+    this.gardeners -= 1;
+    return true;
+  }
+
   hireBartender(): boolean {
     if (!this.spend(STAFF.bartenderHire)) return false;
     this.bartenders += 1;
@@ -208,25 +384,17 @@ export class GameState {
     return true;
   }
 
-  /** Try to grab a free bartender. Returns false if all are busy (guest waits). */
-  requestBarSlot(): boolean {
-    if (this.serving < this.bartenders) {
-      this.serving += 1;
-      return true;
-    }
-    return false;
-  }
-
-  releaseBarSlot(): void {
-    if (this.serving > 0) this.serving -= 1;
-  }
-
   /** Per-tick upkeep: draw staff wages once per in-game hour. */
   tick(): void {
     this.wageTimer -= 1;
     if (this.wageTimer <= 0) {
       this.wageTimer = STAFF.wageIntervalFrames;
-      this.lastWage = this.bartenders * STAFF.bartenderWage + this.cleaners * STAFF.cleanerWage;
+      this.lastWage =
+        this.bartenders * STAFF.bartenderWage +
+        this.cleaners * STAFF.cleanerWage +
+        this.gardeners * STAFF.gardenerWage +
+        this.sellers * STAFF.sellerWage +
+        this.djWorkers * STAFF.djWage;
       this.money -= this.lastWage;
       this.wagePayments += 1;
     }
@@ -241,12 +409,20 @@ export class GameState {
   /**
    * Fold a departing guest's final satisfaction into the long-term reputation.
    * Unhappy guests are weighted much more heavily, so they hurt the rep hard.
+   * Returns the before/after reputation so callers can log why it moved.
    */
-  recordDeparture(satisfaction: number): void {
+  recordDeparture(satisfaction: number): { before: number; after: number; happy: boolean } {
     this.guestsDeparted += 1;
-    const weight =
-      satisfaction < REPUTATION.unhappyThreshold ? REPUTATION.unhappyWeight : REPUTATION.happyWeight;
-    this.reputation = (this.reputation * weight + satisfaction) / (weight + 1);
+    const happy = satisfaction >= REPUTATION.unhappyThreshold;
+    const weight = happy ? REPUTATION.happyWeight : REPUTATION.unhappyWeight;
+    const before = this.reputation;
+    this.reputation = (before * weight + satisfaction) / (weight + 1);
+    return { before, after: this.reputation, happy };
+  }
+
+  /** Running total of all sales income (beer + pretzels), for income pop-ups. */
+  get earnings(): number {
+    return this.totalEarned;
   }
 
   /** Average money earned per guest that has been through the garden. */

@@ -3,7 +3,7 @@
 // at the bar / toilet and services it gradually, then drives off.
 
 import { stepToward, dist, type Vec } from '../vec.js';
-import { DELIVERY, PLACES, WORLD } from '../../config.js';
+import { DELIVERY, WORLD } from '../../config.js';
 import type { World } from '../world.js';
 
 export type TruckKind = 'beer' | 'klo';
@@ -28,7 +28,7 @@ export class Truck {
   private delivered = 0;
   private drainRate = 0;
 
-  constructor(id: number, kind: TruckKind, delaySeconds: number, amount: number) {
+  constructor(id: number, kind: TruckKind, delaySeconds: number, amount: number, park: Vec) {
     this.id = id;
     this.kind = kind;
     this.amount = amount;
@@ -38,13 +38,8 @@ export class Truck {
     this.enrouteTimer = total - driveIn; // invisible wait, then it drives in
     this.totalToArrival = total;
 
-    if (kind === 'beer') {
-      this.park = { x: PLACES.bar.x - 120, y: PLACES.bar.y + 72 };
-      this.serviceTotal = Math.round(DELIVERY.beerServiceSeconds * 60);
-    } else {
-      this.park = { x: PLACES.toilet.x - 95, y: PLACES.toilet.y + 28 };
-      this.serviceTotal = Math.round(DELIVERY.kloServiceSeconds * 60);
-    }
+    this.park = { ...park }; // drive to the actual tank (Game picks the spot)
+    this.serviceTotal = Math.round((kind === 'beer' ? DELIVERY.beerServiceSeconds : DELIVERY.kloServiceSeconds) * 60);
     this.serviceTimer = this.serviceTotal;
 
     const spawn: Vec = { x: WORLD.w + 70, y: this.park.y };

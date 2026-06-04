@@ -10,6 +10,7 @@ import { TABLE_LAYOUT, START } from '../config.js';
 export type UnitKind = 'bench' | 'stand';
 
 export interface SeatRef {
+  /** The unit's stable id (not its array index), so removals don't break refs. */
   table: number;
   seat: number;
 }
@@ -142,26 +143,47 @@ export class Seating {
     for (const ti of order) {
       const u = this.units[ti]!;
       const n = unitSeatCount(u);
-      for (let si = 0; si < n; si++) if (!u.taken[si]) return { table: ti, seat: si };
+      for (let si = 0; si < n; si++) if (!u.taken[si]) return { table: u.id, seat: si };
     }
     return null;
   }
 
+  /** Look a unit up by its stable id (null if it has been removed). */
+  private byId(id: number): Unit | null {
+    return this.units.find((u) => u.id === id) ?? null;
+  }
+
   isFree(ref: SeatRef): boolean {
-    const u = this.units[ref.table]!;
-    return ref.seat < unitSeatCount(u) && !u.taken[ref.seat];
+    const u = this.byId(ref.table);
+    return !!u && ref.seat < unitSeatCount(u) && !u.taken[ref.seat];
   }
 
   claim(ref: SeatRef): void {
-    this.units[ref.table]!.taken[ref.seat] = true;
+    const u = this.byId(ref.table);
+    if (u) u.taken[ref.seat] = true;
   }
 
   release(ref: SeatRef): void {
-    this.units[ref.table]!.taken[ref.seat] = false;
+    const u = this.byId(ref.table);
+    if (u) u.taken[ref.seat] = false;
   }
 
   seatPoint(ref: SeatRef): Vec {
-    return seatPositions(this.units[ref.table]!)[ref.seat]!;
+    const u = this.byId(ref.table);
+    return u ? seatPositions(u)[ref.seat]! : { x: 0, y: 0 };
+  }
+
+  /** Remove a unit (table/stand) by id. Returns true if it existed. */
+  removeUnit(id: number): boolean {
+    const i = this.units.findIndex((u) => u.id === id);
+    if (i < 0) return false;
+    this.units.splice(i, 1);
+    return true;
+  }
+
+  /** The unit at `p` (within its footprint), for demolition hit-testing. */
+  unitAt(p: Vec): Unit | null {
+    return this.unitNear(p);
   }
 
   private addBenchToUnit(u: Unit): boolean {

@@ -14,16 +14,32 @@ export class Dog {
   private target: Vec;
   private readonly speed = rand(1.6, 3.0);
   private pauseTimer = 0;
+  private petTimer = 0;
+
+  /** Hold still while a bartender pets the dog (sets/extends the pet timer). */
+  pet(frames: number): void {
+    this.petTimer = Math.max(this.petTimer, frames);
+  }
+
+  /** Whether the dog is currently being petted (for the view, if needed). */
+  get beingPetted(): boolean {
+    return this.petTimer > 0;
+  }
 
   constructor(id: number) {
     this.id = id;
     this.fur = pick(DOG_COLORS);
-    this.pos = { x: rand(200, WORLD.w - 200), y: rand(250, WORLD.h - 150) };
+    this.pos = { x: rand(40, WORLD.w - 40), y: rand(60, WORLD.h - 40) };
     this.target = Dog.randomTarget();
     this.wag = rand(0, 6);
   }
 
   tick(w: World): boolean {
+    if (this.petTimer > 0) {
+      this.petTimer--;
+      this.wag += 0.9; // happy wagging, standing still to be petted
+      return true;
+    }
     if (this.pauseTimer > 0) {
       this.pauseTimer--;
     } else {
@@ -52,6 +68,6 @@ export class Dog {
   }
 
   private static randomTarget(): Vec {
-    return { x: rand(120, WORLD.w - 120), y: rand(200, WORLD.h - 120) };
+    return { x: rand(40, WORLD.w - 40), y: rand(60, WORLD.h - 40) };
   }
 }

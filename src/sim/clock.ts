@@ -6,12 +6,21 @@ import { CLOCK } from '../config.js';
 
 export class Clock {
   private frames = 0;
+  private days = 0;
   private readonly framesPerHour = CLOCK.secondsPerHour * 60;
   private readonly dayFrames = (CLOCK.closeHour - CLOCK.openHour) * CLOCK.secondsPerHour * 60;
 
   tick(): void {
     this.frames += 1;
-    if (this.frames >= this.dayFrames) this.frames = 0; // new day
+    if (this.frames >= this.dayFrames) {
+      this.frames = 0; // new day
+      this.days += 1;
+    }
+  }
+
+  /** Days elapsed since opening (0 on the first day). Bumps at each midnight wrap. */
+  get day(): number {
+    return this.days;
   }
 
   get hour(): number {
@@ -25,6 +34,11 @@ export class Clock {
   /** Beer is served and new guests arrive only before last call. */
   isOpenForBusiness(): boolean {
     return this.hour < CLOCK.lastCallHour;
+  }
+
+  /** Staff work past last call (clearing up) and only head home an hour later. */
+  isStaffOnShift(): boolean {
+    return this.hour < CLOCK.lastCallHour + CLOCK.staffOvertimeHours;
   }
 
   /** "HH:MM" for the on-screen clock. */

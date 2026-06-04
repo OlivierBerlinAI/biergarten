@@ -1,12 +1,23 @@
-// A Putzkraft (cleaner). Pure logic: patrol, walk to the nearest mess and clear
-// it, or scrub the toilet when it gets dirty. The view draws the red hat.
+// A Putzkraft (cleaner). Patrols, walks to the nearest mess and clears it, or
+// scrubs the dirtiest WC house. Like everyone they occasionally need the toilet
+// (they queue at the nearest WC). They walk in at opening and head home at last
+// call. The view draws the red hat.
 
 import { stepToward, rand, clamp, type Vec } from '../vec.js';
-import { WORLD, CLEANER, TOILET, LITTER } from '../../config.js';
+import { WORLD, CLEANER, STAFF, TOILET, LITTER, PATH } from '../../config.js';
 import type { Litter } from '../litter.js';
+import type { StallRef, Stall } from '../toilets.js';
 import type { World } from '../world.js';
 
-type CleanerState = 'idle' | 'toLitter' | 'cleaningLitter' | 'toToilet' | 'cleaningToilet';
+type CleanerState =
+  | 'idle'
+  | 'toLitter'
+  | 'cleaningLitter'
+  | 'toToilet'
+  | 'cleaningToilet'
+  | 'breakToilet'
+  | 'onToilet'
+  | 'goHome';
 
 export class Cleaner {
   readonly id: number;
@@ -16,27 +27,72 @@ export class Cleaner {
   private state: CleanerState = 'idle';
   private readonly speed = rand(CLEANER.speedMin, CLEANER.speedMax);
   private target: Litter | null = null;
+  private targetStall: StallRef | null = null;
   private wander: Vec;
   private cleanTimer = 0;
+  private _bladder = rand(0, 30);
+  private readonly bladderRate = rand(STAFF.bladderRateMin, STAFF.bladderRateMax);
+  private toiletDuration = 1;
+  private waitTimer = 0;
+  private toiletStall: Stall | null = null;
+  private pathMult = 1;
 
-  constructor(id: number) {
+  constructor(id: number, entrance: Vec) {
     this.id = id;
-    this.pos = { x: rand(200, WORLD.w - 200), y: rand(250, WORLD.h - 160) };
+    this.pos = { x: entrance.x, y: entrance.y };
     this.wander = Cleaner.randomSpot();
     this.bob = rand(0, Math.PI * 2);
   }
 
   get moving(): boolean {
-    return this.state !== 'cleaningLitter' && this.state !== 'cleaningToilet';
+    return this.state !== 'cleaningLitter' && this.state !== 'cleaningToilet' && this.state !== 'onToilet';
+  }
+
+  get goingHome(): boolean {
+    return this.state === 'goHome';
+  }
+
+  /** End of shift: drop whatever they're doing and walk home. */
+  sendHome(w: World): void {
+    if (this.state === 'goHome') return;
+    if (this.target) this.target.claimed = false;
+    this.target = null;
+    this.releaseCleaning(w);
+    w.toilets.leave(this);
+    this.toiletStall = null;
+    this.state = 'goHome';
+  }
+
+  /** Let go of any cabin we'd claimed for scrubbing. */
+  private releaseCleaning(w: World): void {
+    if (this.targetStall) {
+      w.toilets.releaseCleaning(this.targetStall.house, this.targetStall.index, this);
+      this.targetStall = null;
+    }
   }
 
   tick(w: World): boolean {
+    this.pathMult = w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult;
+    // Everyone needs the loo now and then — but not mid-clean or already going.
+    if (this.state !== 'goHome' && this.state !== 'breakToilet' && this.state !== 'onToilet') {
+      this._bladder = clamp(this._bladder + this.bladderRate, 0, 100);
+      if (this._bladder >= STAFF.bladderToilet && w.toilets.count > 0) {
+        if (this.target) this.target.claimed = false;
+        this.target = null;
+        this.releaseCleaning(w); // free any cabin we were scrubbing
+        this.state = 'breakToilet';
+      }
+    }
+
     switch (this.state) {
       case 'idle': this.idle(w); break;
       case 'toLitter': this.toLitter(); break;
       case 'cleaningLitter': this.cleaningLitter(w); break;
       case 'toToilet': this.toToilet(w); break;
       case 'cleaningToilet': this.cleaningToilet(w); break;
+      case 'breakToilet': this.breakToilet(w); break;
+      case 'onToilet': this.onToilet(w); break;
+      case 'goHome': return this.goHome(w);
     }
     this.bob += 0.2;
     return true;
@@ -49,7 +105,9 @@ export class Cleaner {
 
   private idle(w: World): void {
     if (this.grabLitter(w)) return;
-    if (w.eco.toiletDirt > TOILET.cleanThreshold) {
+    const dirty = w.toilets.dirtiestStall(TOILET.cleanThreshold);
+    if (dirty) {
+      this.targetStall = dirty;
       this.state = 'toToilet';
       return;
     }
@@ -78,15 +136,64 @@ export class Cleaner {
   }
 
   private toToilet(w: World): void {
-    if (this.grabLitter(w)) return;
-    if (this.moveTo({ x: w.places.toilet.x, y: w.places.toilet.y + 55 }, this.speed)) {
-      this.state = 'cleaningToilet';
+    const ref = this.targetStall;
+    if (!ref) {
+      this.state = 'idle';
+      return;
     }
+    // Walk to right in front of the specific cabin, then start scrubbing.
+    if (this.moveTo(w.toilets.stallFront(ref.house, ref.index), this.speed)) this.state = 'cleaningToilet';
   }
 
   private cleaningToilet(w: World): void {
-    w.eco.cleanToiletDirt(TOILET.cleanerDirtPerFrame);
-    if (w.eco.toiletDirt <= 0 || w.litter.nearestUnclaimed(this.pos)) this.state = 'idle';
+    const ref = this.targetStall;
+    const stall = ref?.house.stalls[ref.index];
+    if (!ref || !stall) {
+      this.targetStall = null;
+      this.state = 'idle';
+      return;
+    }
+    // Claim the cabin (blocking guests). If a guest is inside, wait out front.
+    if (!w.toilets.blockForCleaning(ref.house, ref.index, this)) return;
+    w.toilets.cleanStall(stall, TOILET.cleanerDirtPerFrame);
+    if (stall.dirt <= 0) {
+      w.toilets.releaseCleaning(ref.house, ref.index, this);
+      this.targetStall = null;
+      this.state = 'idle';
+    }
+  }
+
+  // --- the cleaner's own toilet break --------------------------------------
+
+  private breakToilet(w: World): void {
+    if (!w.toilets.has(this) && !w.toilets.join(this, this.pos)) {
+      this._bladder = 0; // no WC reachable — carry on
+      this.state = 'idle';
+      return;
+    }
+    const atSpot = this.moveTo(w.toilets.positionOf(this), this.speed);
+    if (atSpot && w.toilets.atStallFront(this)) {
+      this.toiletStall = w.toilets.enter(this);
+      this.toiletDuration = Math.floor(rand(STAFF.toiletMin, STAFF.toiletMax));
+      this.waitTimer = this.toiletDuration;
+      this.state = 'onToilet';
+    }
+  }
+
+  private onToilet(w: World): void {
+    if (this.toiletStall) w.toilets.soilStall(this.toiletStall, TOILET.dirtPerUse / this.toiletDuration);
+    this.waitTimer--;
+    if (this.toiletStall) w.toilets.setProgress(this.toiletStall, 1 - this.waitTimer / this.toiletDuration);
+    if (this.waitTimer <= 0) {
+      this._bladder = 0;
+      w.toilets.leave(this);
+      this.toiletStall = null;
+      this.state = 'idle';
+    }
+  }
+
+  private goHome(w: World): boolean {
+    return !this.moveTo(w.places.entrance, this.speed); // arrived home -> despawn
   }
 
   private grabLitter(w: World): boolean {
@@ -99,7 +206,7 @@ export class Cleaner {
   }
 
   private moveTo(target: Vec, speed: number): boolean {
-    const r = stepToward(this.pos, target, speed);
+    const r = stepToward(this.pos, target, speed * this.pathMult);
     this.pos = r.pos;
     return r.arrived;
   }

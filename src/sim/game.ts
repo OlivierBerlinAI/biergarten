@@ -3,20 +3,44 @@
 // so it runs headlessly (tests, CLI) and is driven by command methods.
 
 import { rand, type Vec } from './vec.js';
-import { ARRIVALS, CLOCK, DELIVERY, DOGCATCHER, MAX_DOGS, MAX_PEOPLE, PLACES, START, STRAY_DOG, WORLD } from '../config.js';
+import { ARRIVALS, BAR, CLOCK, DELIVERY, DJ, DOGCATCHER, ECONOMY, MAX_DOGS, MAX_PEOPLE, PLACES, START, STRAY_DOG, WC, WORLD } from '../config.js';
 import { GameState, type Outcome } from './economy.js';
 import { Clock } from './clock.js';
 import { Seating } from './seating.js';
+import { Stands, type Stand } from './stands.js';
+import { Toilets, type WcHouse } from './toilets.js';
+import { Tanks } from './tanks.js';
+import { Deco } from './deco.js';
+import { DJs, type DjObj } from './djs.js';
+import { Paths } from './paths.js';
 import { LitterField } from './litter.js';
+import { Bar, type Ausschank } from './bar.js';
 import { Person } from './entities/person.js';
+import { Bartender } from './entities/bartender.js';
+import { Gardener } from './entities/gardener.js';
+import { PretzelSeller } from './entities/pretzelseller.js';
+import { DjStaff } from './entities/djstaff.js';
 import { Dog } from './entities/dog.js';
 import { Cleaner } from './entities/cleaner.js';
 import { Dogcatcher } from './entities/dogcatcher.js';
 import { Truck } from './entities/truck.js';
+import { EventLog, type LogCat, type LogEntry } from './log.js';
 import type { Places, World } from './world.js';
 import type { SfxName } from './sound.js';
 
-export type PlaceKind = 'table' | 'stand' | 'bench';
+export type PlaceKind =
+  | 'table' | 'stand' | 'bench' | 'pretzel' | 'ausschank' | 'wc'
+  | 'beertank' | 'wastetank' | 'bush' | 'flower' | 'tree' | 'dj' | 'path';
+
+/** A removable object found under the cursor in demolish mode. */
+export interface Demolishable {
+  kind: PlaceKind;
+  id: number;
+  pos: Vec;
+  radius: number;
+  /** Teardown cost (half the build price) — the player pays this to remove it. */
+  cost: number;
+}
 
 export interface Aggregates {
   people: number;
@@ -24,9 +48,10 @@ export interface Aggregates {
   avgSatisfaction: number;
   avgThirst: number;
   avgBladder: number;
+  avgHunger: number;
+  toiletDirt: number;
   moneyPerVisitor: number;
   litter: number;
-  beerPour: number;
   time: string;
   salesOpen: boolean;
 }
@@ -35,14 +60,25 @@ export class Game implements World {
   readonly eco = new GameState();
   readonly clock = new Clock();
   readonly seating = new Seating();
+  readonly stands = new Stands();
+  readonly toilets = new Toilets();
+  readonly tanks = new Tanks();
+  readonly deco = new Deco();
+  readonly djs = new DJs();
+  readonly paths = new Paths();
   readonly litter = new LitterField();
   readonly places: Places = {
     entrance: { ...PLACES.entrance },
     bar: { ...PLACES.bar },
     toilet: { ...PLACES.toilet },
   };
+  readonly bar = new Bar();
 
   readonly people: Person[] = [];
+  readonly bartenders: Bartender[] = [];
+  readonly gardeners: Gardener[] = [];
+  readonly sellers: PretzelSeller[] = [];
+  readonly djStaff: DjStaff[] = [];
   readonly dogs: Dog[] = [];
   readonly cleaners: Cleaner[] = [];
   readonly trucks: Truck[] = [];
@@ -60,6 +96,7 @@ export class Game implements World {
   private nextId = 1;
   private dogSpawnTimer = rand(STRAY_DOG.spawnIntervalMin, STRAY_DOG.spawnIntervalMax);
   private sfx: SfxName[] = [];
+  private readonly events = new EventLog();
 
   // Hourly arrival schedule: at each new hour we pick how many guests come and
   // when (random) within the hour.
@@ -67,10 +104,85 @@ export class Game implements World {
   private hourTick = 0;
   private arrivals: number[] = [];
 
+  // Tracks the in-game day so we can bin stale pretzels (and auto-deliver fresh
+  // ones) when the clock wraps to a new day.
+  private lastDay = 0;
+  // Whether staff are currently on shift (present in the garden). Flipping this
+  // sends bartenders home at night and brings them back (re-assigned) at dawn.
+  private onShift = false;
+
+  // Sales income is batched into periodic green pop-ups (drained by the view).
+  pendingIncomePop = 0;
+  private lastEarnings = 0;
+  private incomeTimer = 0;
+
   constructor() {
+    this.bar.add(this.places.bar); // start with one Ausschank at the usual spot
+    this.toilets.add(this.places.toilet); // ...and one WC house
+    // ...and one beer tank + one waste tank (capacity = sum of placed tanks).
+    this.tanks.add({ x: this.places.bar.x - 10, y: this.places.bar.y - 110 }, 'beer');
+    this.tanks.add({ x: this.places.toilet.x - 130, y: this.places.toilet.y - 30 }, 'waste');
+    this.syncTankCapacity();
+    // ...and a starter bench table (2 benches) plus a standing table.
+    const benchCenter = { x: 380, y: 360 };
+    this.seating.addBenchTable(benchCenter);
+    this.seating.addBenchNear(benchCenter);
+    this.seating.addBenchNear(benchCenter);
+    this.seating.addStandTable({ x: 560, y: 360 });
+    // The initial trees are real (collidable, demolishable) assets.
+    for (const p of [
+      { x: 120, y: 120 },
+      { x: WORLD.w - 60, y: WORLD.h - 360 },
+      { x: 180, y: WORLD.h - 60 },
+      { x: WORLD.w / 2, y: 70 },
+    ]) {
+      this.deco.add(p, 'tree');
+    }
+    // A starter path: across the bottom, with a branch up to the middle.
+    for (let x = 60; x <= WORLD.w - 60; x += 36) this.paths.add({ x, y: WORLD.h - 160 });
+    for (let y = WORLD.h - 160; y >= 360; y -= 36) this.paths.add({ x: 640, y });
     for (let i = 0; i < START.guests; i++) this.spawnPerson();
     for (let i = 0; i < START.dogs; i++) this.spawnDog();
-    for (let i = 0; i < START.cleaners; i++) this.cleaners.push(new Cleaner(this.nextId++));
+    // Staff (bartenders + cleaners) are spawned by the shift system at opening.
+  }
+
+  /** Testing helper: drop 1000 € into the till (wired to the Spiel menu). */
+  cheatMoney(): void {
+    this.eco.money += 1000;
+    this.log('money', 'Testgeld', 1000);
+  }
+
+  /** Strip the garden bare for a "blank field" start: nothing built, low repute. */
+  makeBlank(): void {
+    this.seating.units.length = 0;
+    this.bar.list.length = 0;
+    this.toilets.list.length = 0;
+    this.tanks.list.length = 0;
+    this.stands.list.length = 0;
+    this.deco.list.length = 0;
+    this.djs.list.length = 0;
+    this.paths.list.length = 0;
+    this.people.length = 0;
+    // No staff to begin with either — hire them once you've built something.
+    this.eco.bartenders = 0;
+    this.eco.cleaners = 0;
+    this.eco.gardeners = 0;
+    this.bartenders.length = 0;
+    this.cleaners.length = 0;
+    this.gardeners.length = 0;
+    this.syncTankCapacity(); // capacities → 0
+    this.eco.sellers = 0;
+    this.eco.djWorkers = 0;
+    this.sellers.length = 0;
+    this.djStaff.length = 0;
+    this.eco.beer.current = 0; // no tank, no stock
+    this.eco.reputation = START.blankReputation; // so guests trickle in slowly
+    // Hand over the cash equivalent of everything the "basics" start gives you,
+    // so both starts begin with the same total wealth.
+    const basicsValue =
+      ECONOMY.ausschankCost + ECONOMY.wcHouseCost + ECONOMY.beerTankCost + ECONOMY.wasteTankCost +
+      ECONOMY.tableCost + 2 * ECONOMY.benchCost + ECONOMY.standCost + 4 * ECONOMY.treeCost;
+    this.eco.money = START.money + basicsValue;
   }
 
   // --- the one tick ---------------------------------------------------------
@@ -79,8 +191,34 @@ export class Game implements World {
     if (this.ended) return;
 
     this.clock.tick();
+    if (this.clock.day !== this.lastDay) {
+      this.lastDay = this.clock.day;
+      const d = this.eco.newDay();
+      if (d.discarded > 0) this.log('money', `Brezn vom Vortag entsorgt: ${d.discarded} 🥨`);
+      if (d.delivered > 0) this.log('money', `Brezn-Tageslieferung: ${d.delivered} 🥨`, -d.cost);
+      const ad = this.eco.runAdvertising();
+      if (ad.spent > 0) this.log('money', `Werbung geschaltet (Ruf +${ad.repGain.toFixed(1)})`, -ad.spent);
+    }
     this.eco.salesOpen = this.clock.isOpenForBusiness();
+    this.manageShift();
+    const wagesBefore = this.eco.wagePayments;
     this.eco.tick();
+    if (this.eco.wagePayments !== wagesBefore && this.eco.lastWage > 0) {
+      this.log(
+        'staff',
+        `Stundenlohn (${this.eco.bartenders}×Theke, ${this.eco.cleaners}×Putz, ${this.eco.gardeners}×Gärtner, ${this.eco.sellers}×Brezn, ${this.eco.djWorkers}×DJ)`,
+        -this.eco.lastWage,
+      );
+    }
+
+    // Batch sales income into a green pop-up every few seconds (drained by the view).
+    this.incomeTimer++;
+    if (this.incomeTimer >= 180) {
+      this.incomeTimer = 0;
+      const inc = this.eco.earnings - this.lastEarnings;
+      this.lastEarnings = this.eco.earnings;
+      if (inc > 0) this.pendingIncomePop += inc;
+    }
 
     this.updateArrivals();
 
@@ -97,8 +235,24 @@ export class Game implements World {
         this.people.splice(i, 1);
       }
     }
+    this.deco.decay();
     for (const d of this.dogs) d.tick(this);
-    for (const c of this.cleaners) c.tick(this);
+    for (let i = this.cleaners.length - 1; i >= 0; i--) {
+      if (!this.cleaners[i]!.tick(this)) this.cleaners.splice(i, 1);
+    }
+    for (let i = this.bartenders.length - 1; i >= 0; i--) {
+      if (!this.bartenders[i]!.tick(this)) this.bartenders.splice(i, 1);
+    }
+    for (let i = this.gardeners.length - 1; i >= 0; i--) {
+      if (!this.gardeners[i]!.tick(this)) this.gardeners.splice(i, 1);
+    }
+    for (let i = this.sellers.length - 1; i >= 0; i--) {
+      const s = this.sellers[i]!;
+      if (!s.tick(this)) { if (s.stand.seller === s) s.stand.seller = null; this.sellers.splice(i, 1); }
+    }
+    for (let i = this.djStaff.length - 1; i >= 0; i--) {
+      if (!this.djStaff[i]!.tick(this)) this.djStaff.splice(i, 1);
+    }
     if (this.dogcatcher && !this.dogcatcher.tick(this)) this.dogcatcher = null;
 
     for (let i = this.trucks.length - 1; i >= 0; i--) {
@@ -123,6 +277,10 @@ export class Game implements World {
     this.sfx.push(name);
   }
 
+  log(cat: LogCat, msg: string, delta?: number, who?: number): void {
+    this.events.push(cat, msg, this.clock.label(), delta, who);
+  }
+
   nearestDog(from: Vec): Dog | null {
     let best: Dog | null = null;
     let bestDist = Infinity;
@@ -140,7 +298,12 @@ export class Game implements World {
     const i = this.dogs.indexOf(dog);
     if (i < 0) return;
     this.dogs.splice(i, 1);
-    for (const p of this.people) p.upset(DOGCATCHER.satPerDog); // guests dislike the spectacle
+    for (const p of this.people) p.upset(this, DOGCATCHER.satPerDog); // guests dislike the spectacle
+  }
+
+  /** Food is on offer only when a staffed stand has pretzels in stock. */
+  foodAvailable(): boolean {
+    return this.stands.hasSeller() && this.eco.canSellPretzel();
   }
 
   /** Drain queued sound effects (the view plays them; CLI ignores). */
@@ -148,6 +311,11 @@ export class Game implements World {
     const s = this.sfx;
     this.sfx = [];
     return s;
+  }
+
+  /** Drain queued debug-log entries (the view renders them; CLI ignores). */
+  drainLogs(): LogEntry[] {
+    return this.events.drain();
   }
 
   // --- commands -------------------------------------------------------------
@@ -163,10 +331,12 @@ export class Game implements World {
     if (this.beerTruck) return false;
     const amount = this.eco.plannedRestock();
     if (amount <= 0) return false;
-    if (!this.eco.spend(this.eco.restockCost())) return false;
+    const cost = this.eco.restockCost();
+    if (!this.eco.spend(cost)) return false;
     const secs = DELIVERY.minSeconds + Math.random() * (DELIVERY.maxSeconds - DELIVERY.minSeconds);
     this.beerTruck = this.spawnTruck('beer', secs, amount);
     this.play('pour');
+    this.log('money', `Bier bestellt: ${amount} L`, -cost);
     return true;
   }
 
@@ -174,16 +344,84 @@ export class Game implements World {
   callKlowagen(): boolean {
     if (this.kloTruck) return false;
     if (this.eco.toilet.current <= 0) return false;
-    if (!this.eco.spend(this.eco.klowagenCost())) return false;
+    const cost = this.eco.klowagenCost();
+    if (!this.eco.spend(cost)) return false;
     const secs = DELIVERY.kloMinSeconds + Math.random() * (DELIVERY.kloMaxSeconds - DELIVERY.kloMinSeconds);
     this.kloTruck = this.spawnTruck('klo', secs, 0);
     this.play('toilet');
+    this.log('money', 'Klowagen gerufen', -cost);
     return true;
   }
 
-  /** Buy the next toilet-tank upgrade (doubles its capacity). */
-  upgradeToilet(): boolean {
-    return this.eco.upgradeToilet();
+  /** Spawn/retire pretzel sellers so each stand has one, up to the hired count. */
+  private reconcileSellers(): void {
+    if (!this.onShift) return;
+    for (const s of this.sellers) {
+      if (!s.goingHome && !this.stands.list.includes(s.stand)) {
+        if (s.stand.seller === s) s.stand.seller = null;
+        s.sendHome();
+      }
+    }
+    const active = (): PretzelSeller[] => this.sellers.filter((s) => !s.goingHome);
+    for (const stand of this.stands.list) {
+      if (active().length >= this.eco.sellers) break;
+      if (!stand.seller || stand.seller.goingHome) this.spawnSeller(stand);
+    }
+    while (active().length > this.eco.sellers) {
+      const extra = active().pop()!;
+      if (extra.stand.seller === extra) extra.stand.seller = null;
+      extra.sendHome();
+    }
+  }
+
+  /** Spawn/retire DJs so each booth has one, up to the hired count. */
+  private reconcileDjs(): void {
+    if (!this.onShift) return;
+    for (const d of this.djStaff) {
+      if (!d.goingHome && !this.djs.list.includes(d.booth)) d.sendHome();
+    }
+    const active = (): DjStaff[] => this.djStaff.filter((d) => !d.goingHome);
+    const staffed = new Set(active().map((d) => d.booth));
+    for (const booth of this.djs.list) {
+      if (active().length >= this.eco.djWorkers) break;
+      if (!staffed.has(booth)) { this.spawnDjStaff(booth); staffed.add(booth); }
+    }
+    while (active().length > this.eco.djWorkers) active().pop()!.sendHome();
+  }
+
+  /** Recompute the shared pool capacities from the number of placed tanks. */
+  private syncTankCapacity(): void {
+    this.eco.beer.capacity = this.tanks.count('beer') * ECONOMY.beerTankUnit;
+    this.eco.toilet.capacity = this.tanks.count('waste') * ECONOMY.wasteTankUnit;
+  }
+
+  // --- pretzels -------------------------------------------------------------
+
+  setAdBudget(amount: number): void {
+    this.eco.setAdBudget(amount);
+  }
+  setPretzelPrice(price: number): void {
+    this.eco.setPretzelPrice(price);
+  }
+  setPretzelOrderAmount(amount: number): void {
+    this.eco.setPretzelOrderAmount(amount);
+  }
+  /** Order pretzels from the baker: pay now, delivered to the stock at once. */
+  orderPretzels(): boolean {
+    const amount = this.eco.plannedPretzelOrder();
+    if (amount <= 0) return false;
+    const cost = this.eco.pretzelOrderCost(amount);
+    if (!this.eco.spend(cost)) return false;
+    this.eco.addPretzels(amount);
+    this.play('cheers');
+    this.log('money', `Brezn bestellt: ${amount} 🥨`, -cost);
+    return true;
+  }
+  /** Toggle the daily auto-delivery of fresh pretzels. */
+  togglePretzelAutoDeliver(): boolean {
+    const on = this.eco.toggleAutoDeliver();
+    this.log('money', `Brezn-Auto-Lieferung ${on ? 'an' : 'aus'}`);
+    return on;
   }
 
   beerOrderPending(): boolean {
@@ -200,30 +438,111 @@ export class Game implements World {
   }
 
   private spawnTruck(kind: 'beer' | 'klo', delaySeconds: number, amount: number): Truck {
-    const t = new Truck(this.nextId++, kind, delaySeconds, amount);
+    const t = new Truck(this.nextId++, kind, delaySeconds, amount, this.tankPark(kind));
     this.trucks.push(t);
     return t;
   }
+
+  /** Where a delivery truck parks: at the first tank of the matching kind. */
+  private tankPark(kind: 'beer' | 'klo'): Vec {
+    const want = kind === 'beer' ? 'beer' : 'waste';
+    const tank = this.tanks.list.find((t) => t.kind === want);
+    if (tank) return { x: tank.pos.x, y: tank.pos.y + 40 };
+    // Fallback (e.g. all tanks demolished): the old fixed depot spot.
+    return kind === 'beer'
+      ? { x: PLACES.bar.x - 120, y: PLACES.bar.y + 72 }
+      : { x: PLACES.toilet.x - 95, y: PLACES.toilet.y + 28 };
+  }
   hireBartender(): boolean {
-    return this.eco.hireBartender();
+    const cost = this.eco.bartenderHireCost();
+    if (!this.eco.hireBartender()) return false;
+    this.log('staff', `Schankkraft eingestellt → ${this.eco.bartenders}`, -cost);
+    // If hired mid-shift, put them on a free tap, else let them loaf about.
+    if (this.onShift) {
+      const ref = this.bar.firstUnstaffedTap();
+      if (ref) this.spawnBartender(ref.building, ref.index);
+      else this.spawnIdleBartender();
+    }
+    return true;
   }
   fireBartender(): boolean {
-    return this.eco.fireBartender();
+    if (!this.eco.fireBartender()) return false;
+    this.log('staff', `Schankkraft entlassen → ${this.eco.bartenders}`);
+    // Send a loafing bartender home first; only pull one off a tap if we must.
+    if (this.onShift) {
+      const b = this.bartenders.find((x) => x.isIdle) ?? this.bartenders.find((x) => !x.goingHome);
+      if (b) {
+        if (b.building) b.building.taps[b.tapIndex]!.attendant = null;
+        b.sendHome();
+      }
+    }
+    return true;
   }
   hireCleaner(): boolean {
+    const cost = this.eco.cleanerHireCost();
     if (!this.eco.hireCleaner()) return false;
-    this.cleaners.push(new Cleaner(this.nextId++));
+    // Only actually on the field during the shift; otherwise they arrive at dawn.
+    if (this.onShift) this.cleaners.push(new Cleaner(this.nextId++, this.places.entrance));
+    this.log('staff', `Putzkraft eingestellt → ${this.eco.cleaners}`, -cost);
     return true;
   }
   fireCleaner(): boolean {
     if (!this.eco.fireCleaner()) return false;
-    this.cleaners.pop()?.onRemove();
+    if (this.onShift) {
+      const c = this.cleaners.find((x) => !x.goingHome);
+      if (c) c.sendHome(this);
+    }
+    this.log('staff', `Putzkraft entlassen → ${this.eco.cleaners}`);
+    return true;
+  }
+  hireGardener(): boolean {
+    const cost = this.eco.gardenerHireCost();
+    if (!this.eco.hireGardener()) return false;
+    if (this.onShift) this.gardeners.push(new Gardener(this.nextId++, this.places.entrance));
+    this.log('staff', `Gärtner eingestellt → ${this.eco.gardeners}`, -cost);
+    return true;
+  }
+  fireGardener(): boolean {
+    if (!this.eco.fireGardener()) return false;
+    if (this.onShift) {
+      const gr = this.gardeners.find((x) => !x.goingHome);
+      if (gr) gr.sendHome();
+    }
+    this.log('staff', `Gärtner entlassen → ${this.eco.gardeners}`);
+    return true;
+  }
+  hireSeller(): boolean {
+    const cost = this.eco.sellerHireCost();
+    if (!this.eco.hireSeller()) return false;
+    this.log('staff', `Brezelverkäufer eingestellt → ${this.eco.sellers}`, -cost);
+    this.reconcileSellers();
+    return true;
+  }
+  fireSeller(): boolean {
+    if (!this.eco.fireSeller()) return false;
+    this.log('staff', `Brezelverkäufer entlassen → ${this.eco.sellers}`);
+    this.reconcileSellers();
+    return true;
+  }
+  hireDj(): boolean {
+    const cost = this.eco.djHireCost();
+    if (!this.eco.hireDj()) return false;
+    this.log('staff', `DJ eingestellt → ${this.eco.djWorkers}`, -cost);
+    this.reconcileDjs();
+    return true;
+  }
+  fireDj(): boolean {
+    if (!this.eco.fireDj()) return false;
+    this.log('staff', `DJ entlassen → ${this.eco.djWorkers}`);
+    this.reconcileDjs();
     return true;
   }
   callDogCatcher(): boolean {
     if (!this.dogCatcherAvailable()) return false;
-    if (!this.eco.spend(this.eco.dogCatcherCost())) return false;
+    const cost = this.eco.dogCatcherCost();
+    if (!this.eco.spend(cost)) return false;
     this.dogcatcher = new Dogcatcher(this.nextId++, this.places.entrance);
+    this.log('money', 'Hundefänger gerufen', -cost);
     return true;
   }
   dogCatcherAvailable(): boolean {
@@ -241,20 +560,90 @@ export class Game implements World {
   benchBuyable(): boolean {
     return this.seating.canAddBench() && this.eco.canAfford(this.eco.benchCost());
   }
+  pretzelStandBuyable(): boolean {
+    return this.eco.canAfford(this.eco.pretzelStandCost());
+  }
+  ausschankBuyable(): boolean {
+    return this.eco.canAfford(this.eco.ausschankCost());
+  }
+  wcBuyable(): boolean {
+    return this.eco.canAfford(this.eco.wcHouseCost());
+  }
+  beerTankBuyable(): boolean {
+    return this.eco.canAfford(this.eco.beerTankCost());
+  }
+  wasteTankBuyable(): boolean {
+    return this.eco.canAfford(this.eco.wasteTankCost());
+  }
+  bushBuyable(): boolean {
+    return this.eco.canAfford(this.eco.bushCost());
+  }
+  flowerBuyable(): boolean {
+    return this.eco.canAfford(this.eco.flowerCost());
+  }
+  treeBuyable(): boolean {
+    return this.eco.canAfford(this.eco.treeCost());
+  }
+  djBuyable(): boolean {
+    return this.eco.canAfford(this.eco.djCost());
+  }
+  pathBuyable(): boolean {
+    return this.eco.canAfford(this.eco.pathCost());
+  }
+
+  /** No furniture, stand, bar, WC, tank, plant or DJ overlaps `point`. */
+  private spotClear(point: Vec, radius: number): boolean {
+    return (
+      this.seating.isClear(point, radius) &&
+      this.stands.isClear(point, radius) &&
+      this.bar.isClear(point, radius) &&
+      this.toilets.isClear(point, radius) &&
+      this.tanks.isClear(point, radius) &&
+      this.deco.isClear(point, radius) &&
+      this.djs.isClear(point, radius)
+    );
+  }
 
   /** Whether `kind` may be placed at `point` (for ghost colour + placement). */
   canPlace(kind: PlaceKind, point: Vec): boolean {
     if (kind === 'bench') {
       return this.seating.canAddBenchNear(point) && this.eco.canAfford(this.eco.benchCost());
     }
+    if (kind === 'pretzel') {
+      return this.inField(point) && this.spotClear(point, 44) && this.eco.canAfford(this.eco.pretzelStandCost());
+    }
+    if (kind === 'ausschank') {
+      return this.inField(point) && this.spotClear(point, 80) && this.eco.canAfford(this.eco.ausschankCost());
+    }
+    if (kind === 'wc') {
+      return this.inField(point) && this.spotClear(point, 70) && this.eco.canAfford(this.eco.wcHouseCost());
+    }
+    if (kind === 'beertank') {
+      return this.inField(point) && this.spotClear(point, 32) && this.eco.canAfford(this.eco.beerTankCost());
+    }
+    if (kind === 'wastetank') {
+      return this.inField(point) && this.spotClear(point, 32) && this.eco.canAfford(this.eco.wasteTankCost());
+    }
+    if (kind === 'bush') {
+      return this.inField(point) && this.spotClear(point, 22) && this.eco.canAfford(this.eco.bushCost());
+    }
+    if (kind === 'flower') {
+      return this.inField(point) && this.spotClear(point, 22) && this.eco.canAfford(this.eco.flowerCost());
+    }
+    if (kind === 'tree') {
+      return this.inField(point) && this.spotClear(point, 40) && this.eco.canAfford(this.eco.treeCost());
+    }
+    if (kind === 'dj') {
+      return this.inField(point) && this.spotClear(point, 26) && this.eco.canAfford(this.eco.djCost());
+    }
+    if (kind === 'path') {
+      // Paths sit on the ground — they overlap buildings freely, but don't stack
+      // on top of an existing path tile (painting over it just does nothing).
+      return this.inField(point) && !this.paths.occupied(point) && this.eco.canAfford(this.eco.pathCost());
+    }
     const cost = kind === 'stand' ? this.eco.standCost() : this.eco.tableCost();
     const radius = kind === 'stand' ? 44 : 62;
-    return (
-      this.inField(point) &&
-      this.seating.isClear(point, radius) &&
-      this.seating.canAddTable() &&
-      this.eco.canAfford(cost)
-    );
+    return this.inField(point) && this.spotClear(point, radius) && this.seating.canAddTable() && this.eco.canAfford(cost);
   }
 
   /** Place `kind` at `point`. Returns false (no charge) if invalid. */
@@ -266,11 +655,148 @@ export class Game implements World {
     } else if (kind === 'stand') {
       this.eco.spend(this.eco.standCost());
       this.seating.addStandTable(point);
+    } else if (kind === 'pretzel') {
+      this.eco.spend(this.eco.pretzelStandCost());
+      this.stands.add(point);
+      this.reconcileSellers(); // a hired-but-spare seller takes the new stand
+    } else if (kind === 'ausschank') {
+      this.eco.spend(this.eco.ausschankCost());
+      const a = this.bar.add(point);
+      // A loafing bartender, if any, takes the new tap.
+      if (this.onShift) this.staffTapWithIdle(a, 0);
+    } else if (kind === 'wc') {
+      this.eco.spend(this.eco.wcHouseCost());
+      this.toilets.add(point);
+    } else if (kind === 'beertank') {
+      this.eco.spend(this.eco.beerTankCost());
+      this.tanks.add(point, 'beer');
+      this.syncTankCapacity();
+    } else if (kind === 'wastetank') {
+      this.eco.spend(this.eco.wasteTankCost());
+      this.tanks.add(point, 'waste');
+      this.syncTankCapacity();
+    } else if (kind === 'bush') {
+      this.eco.spend(this.eco.bushCost());
+      this.deco.add(point, 'bush');
+    } else if (kind === 'flower') {
+      this.eco.spend(this.eco.flowerCost());
+      this.deco.add(point, 'flower');
+    } else if (kind === 'tree') {
+      this.eco.spend(this.eco.treeCost());
+      this.deco.add(point, 'tree');
+    } else if (kind === 'dj') {
+      this.eco.spend(this.eco.djCost());
+      this.djs.add(point);
+      this.reconcileDjs(); // a hired-but-spare DJ takes the new booth
+    } else if (kind === 'path') {
+      this.eco.spend(this.eco.pathCost());
+      this.paths.add(point);
     } else {
       this.eco.spend(this.eco.tableCost());
       this.seating.addBenchTable(point);
     }
+    if (kind !== 'path') this.play('cheers'); // painting a path would spam the sound
+    return true;
+  }
+
+  // --- demolition -----------------------------------------------------------
+
+  /** The removable object under `point` (topmost/smallest first), or null. */
+  demolishableAt(point: Vec): Demolishable | null {
+    const half = (c: number): number => Math.ceil(c / 2);
+    const dj = this.djs.at(point);
+    if (dj) return { kind: 'dj', id: dj.id, pos: dj.pos, radius: DJ.footprint, cost: half(this.eco.djCost()) };
+    const d = this.deco.at(point);
+    if (d) {
+      const base = d.kind === 'flower' ? this.eco.flowerCost() : d.kind === 'tree' ? this.eco.treeCost() : this.eco.bushCost();
+      return { kind: d.kind, id: d.id, pos: d.pos, radius: d.kind === 'tree' ? 40 : 22, cost: half(base) };
+    }
+    const t = this.tanks.at(point);
+    if (t) {
+      const beer = t.kind === 'beer';
+      const cost = half(beer ? this.eco.beerTankCost() : this.eco.wasteTankCost());
+      return { kind: beer ? 'beertank' : 'wastetank', id: t.id, pos: t.pos, radius: 30, cost };
+    }
+    const st = this.stands.at(point);
+    if (st) return { kind: 'pretzel', id: st.id, pos: st.pos, radius: 38, cost: half(this.eco.pretzelStandCost()) };
+    const bar = this.bar.at(point);
+    if (bar) return { kind: 'ausschank', id: bar.id, pos: bar.pos, radius: BAR.footprint, cost: half(this.eco.ausschankCost()) };
+    const wc = this.toilets.at(point);
+    if (wc) return { kind: 'wc', id: wc.id, pos: wc.pos, radius: WC.footprint, cost: half(this.eco.wcHouseCost()) };
+    const u = this.seating.unitAt(point);
+    if (u && u.taken.every((x) => !x)) {
+      const stand = u.kind === 'stand';
+      const cost = half(stand ? this.eco.standCost() : this.eco.tableCost());
+      return { kind: stand ? 'stand' : 'table', id: u.id, pos: u.center, radius: u.footprint, cost };
+    }
+    const pt = this.paths.at(point);
+    if (pt) return { kind: 'path', id: pt.id, pos: pt.pos, radius: 18, cost: half(this.eco.pathCost()) };
+    return null;
+  }
+
+  /** Tear down `d` (charging the teardown cost). False if it can't be afforded. */
+  demolish(d: Demolishable): boolean {
+    if (!this.eco.spend(d.cost)) return false;
+    switch (d.kind) {
+      case 'dj': {
+        this.djs.remove(d.id);
+        this.reconcileDjs(); // free its DJ, restaff another booth if one is bare
+        break;
+      }
+      case 'bush': case 'flower': case 'tree': this.deco.remove(d.id); break;
+      case 'beertank': case 'wastetank': this.tanks.remove(d.id); this.syncTankCapacity(); break;
+      case 'pretzel': {
+        this.stands.remove(d.id);
+        this.reconcileSellers(); // free its seller, restaff another stand if bare
+        break;
+      }
+      case 'ausschank': {
+        const bar = this.bar.list.find((a) => a.id === d.id);
+        if (bar) for (const tap of bar.taps) tap.attendant?.unassign();
+        this.bar.remove(d.id);
+        break;
+      }
+      case 'wc': this.toilets.remove(d.id); break;
+      case 'path': this.paths.remove(d.id); break;
+      case 'table': case 'stand': this.seating.removeUnit(d.id); break;
+      default: break;
+    }
     this.play('cheers');
+    this.log('money', `Abgerissen (${d.kind})`, -d.cost);
+    return true;
+  }
+
+  /** A click in the world (not in placement mode): try the buildings' "+" buttons. */
+  handleWorldClick(point: Vec): boolean {
+    const a = this.bar.buildingAtPlus(point);
+    if (a) return this.addTap(a);
+    const h = this.toilets.buildingAtPlus(point);
+    if (h) return this.addStall(h);
+    return false;
+  }
+
+  /** Buy another tap for an Ausschank (charged here). */
+  private addTap(a: Ausschank): boolean {
+    if (!this.bar.canAddTap(a) || !this.eco.canAfford(this.eco.tapCost())) return false;
+    const cost = this.eco.tapCost();
+    if (!this.eco.spend(cost)) return false;
+    const index = a.taps.length;
+    this.bar.addTap(a);
+    // A loafing bartender, if any, takes the fresh tap.
+    if (this.onShift) this.staffTapWithIdle(a, index);
+    this.play('cheers');
+    this.log('money', `Zapfhahn hinzugefügt (Bar #${a.id})`, -cost);
+    return true;
+  }
+
+  /** Buy another toilet for a WC house (charged here). */
+  private addStall(h: WcHouse): boolean {
+    if (!this.toilets.canAddStall(h) || !this.eco.canAfford(this.eco.stallCost())) return false;
+    const cost = this.eco.stallCost();
+    if (!this.eco.spend(cost)) return false;
+    this.toilets.addStall(h);
+    this.play('toilet');
+    this.log('money', `Toilette hinzugefügt (WC #${h.id})`, -cost);
     return true;
   }
 
@@ -281,12 +807,12 @@ export class Game implements World {
     let sat = 0;
     let thirst = 0;
     let bladder = 0;
-    let pour = 0;
+    let hunger = 0;
     for (const p of this.people) {
       sat += p.satisfaction;
       thirst += p.thirst;
       bladder += p.bladder;
-      if (p.pourProgress > pour) pour = p.pourProgress;
+      hunger += p.hunger;
     }
     return {
       people: n,
@@ -294,9 +820,10 @@ export class Game implements World {
       avgSatisfaction: n ? sat / n : 0,
       avgThirst: n ? thirst / n : 0,
       avgBladder: n ? bladder / n : 0,
+      avgHunger: n ? hunger / n : 0,
+      toiletDirt: this.toilets.combinedDirt(),
       moneyPerVisitor: this.eco.moneyPerVisitor(),
       litter: this.litter.count,
-      beerPour: pour,
       time: this.clock.label(),
       salesOpen: this.clock.isOpenForBusiness(),
     };
@@ -305,7 +832,74 @@ export class Game implements World {
   // --- internals ------------------------------------------------------------
 
   private inField(p: Vec): boolean {
-    return p.x > 90 && p.x < WORLD.w - 90 && p.y > 150 && p.y < WORLD.h - 110;
+    // Buildable almost to the very edge of the world (small margin for footprints).
+    return p.x > 24 && p.x < WORLD.w - 24 && p.y > 24 && p.y < WORLD.h - 24;
+  }
+
+  // --- staff shifts ---------------------------------------------------------
+
+  /** Bring staff in at opening and send them home an hour after last call. */
+  private manageShift(): void {
+    const want = this.clock.isStaffOnShift();
+    if (want && !this.onShift) {
+      this.onShift = true;
+      this.startShift();
+    } else if (!want && this.onShift) {
+      this.onShift = false;
+      this.endShift();
+    }
+  }
+
+  /** Morning: bring the staff in — cleaners, gardeners, pretzel sellers, DJs,
+   *  and bartenders assigned to taps (surplus loafs about). */
+  private startShift(): void {
+    for (let i = 0; i < this.eco.cleaners; i++) this.cleaners.push(new Cleaner(this.nextId++, this.places.entrance));
+    for (let i = 0; i < this.eco.gardeners; i++) this.gardeners.push(new Gardener(this.nextId++, this.places.entrance));
+    this.reconcileSellers();
+    this.reconcileDjs();
+    this.bar.clearAttendants();
+    const taps = this.bar.pickStaffedTaps(this.eco.bartenders);
+    for (const ref of taps) this.spawnBartender(ref.building, ref.index);
+    for (let i = taps.length; i < this.eco.bartenders; i++) this.spawnIdleBartender();
+  }
+
+  /** Evening: all staff pack up and head home; counters go unstaffed. */
+  private endShift(): void {
+    this.bar.clearAttendants();
+    for (const b of this.bartenders) b.sendHome();
+    for (const c of this.cleaners) c.sendHome(this);
+    for (const gr of this.gardeners) gr.sendHome();
+    for (const s of this.sellers) { s.stand.seller = null; s.sendHome(); }
+    for (const d of this.djStaff) d.sendHome();
+  }
+
+  private spawnSeller(stand: Stand): void {
+    const s = new PretzelSeller(this.nextId++, this.places.entrance, stand);
+    stand.seller = s;
+    this.sellers.push(s);
+  }
+
+  private spawnDjStaff(booth: DjObj): void {
+    this.djStaff.push(new DjStaff(this.nextId++, this.places.entrance, booth));
+  }
+
+  private spawnBartender(building: Ausschank, index: number): void {
+    const b = new Bartender(this.nextId++, this.places.entrance, building, index);
+    building.taps[index]!.attendant = b;
+    this.bartenders.push(b);
+  }
+
+  private spawnIdleBartender(): void {
+    this.bartenders.push(new Bartender(this.nextId++, this.places.entrance, null, -1));
+  }
+
+  /** Hand a freshly opened tap to a loafing bartender, if there is one. */
+  private staffTapWithIdle(building: Ausschank, index: number): void {
+    const idle = this.bartenders.find((b) => b.isIdle);
+    if (idle) {
+      building.taps[index]!.attendant = idle;
+      idle.assignTap(building, index);
+    }
   }
 
   /**

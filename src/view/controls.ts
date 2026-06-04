@@ -13,6 +13,10 @@ export interface ViewActions {
   getSpeed(): number;
   /** Toggle pause; returns the new paused state. */
   togglePause(): boolean;
+  /** Toggle demolish mode; returns the new state. */
+  toggleDemolish(): boolean;
+  /** Whether demolish mode is currently on. */
+  isDemolish(): boolean;
 }
 
 const SPEEDS = [1, 2, 4, 8];
@@ -22,8 +26,14 @@ export class Controls {
   private readonly last = new Map<string, string>();
   private readonly slider: HTMLInputElement | null;
   private readonly restockSlider: HTMLInputElement | null;
+  private readonly pretzelPriceSlider: HTMLInputElement | null;
+  private readonly pretzelOrderSlider: HTMLInputElement | null;
+  private readonly adSlider: HTMLInputElement | null;
   private draggingSlider = false;
   private draggingRestock = false;
+  private draggingPretzelPrice = false;
+  private draggingPretzelOrder = false;
+  private draggingAd = false;
 
   constructor(
     private readonly game: Game,
@@ -39,13 +49,19 @@ export class Controls {
     document.addEventListener('pointerdown', startAudio, { once: true });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') actions.cancelPlace();
+      else if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault(); // pause/resume at the same speed
+        const paused = actions.togglePause();
+        const pb = document.getElementById('btn-pause');
+        if (pb) pb.textContent = paused ? '▶' : '⏸';
+      }
     });
 
     const pause = this.el('btn-pause');
     this.onClick('btn-pause', () => {
       sound.init();
       const paused = actions.togglePause();
-      if (pause) pause.textContent = paused ? '▶ Weiter' : '⏸ Pause';
+      if (pause) pause.textContent = paused ? '▶' : '⏸';
     });
 
     this.onClick('btn-ambient', () => {
@@ -65,12 +81,45 @@ export class Controls {
     for (const s of SPEEDS) this.onClick(`btn-speed-${s}`, () => actions.setSpeed(s));
 
     // Economy + placement.
+    this.setupBuildMenu();
+    this.onClick('btn-demolish', () => { sound.init(); actions.toggleDemolish(); });
+    this.onClick('pretzel-close', () => document.getElementById('pretzelwin')?.classList.add('hidden'));
+    this.onClick('btn-settings', () => document.getElementById('settingswin')?.classList.toggle('hidden'));
+    this.onClick('settings-close', () => document.getElementById('settingswin')?.classList.add('hidden'));
+    this.onClick('btn-game', () => document.getElementById('gamewin')?.classList.toggle('hidden'));
+    this.onClick('game-close', () => document.getElementById('gamewin')?.classList.add('hidden'));
+    this.onClick('btn-cheat-money', () => game.cheatMoney());
+
     this.onClick('btn-beer', () => { sound.init(); game.orderBeer(); });
     this.onClick('btn-klowagen', () => { sound.init(); game.callKlowagen(); });
-    this.onClick('btn-klo-upgrade', () => { sound.init(); game.upgradeToilet(); });
     this.onClick('btn-table', () => { sound.init(); actions.beginPlace('table'); });
     this.onClick('btn-stand', () => { sound.init(); actions.beginPlace('stand'); });
     this.onClick('btn-bench', () => { sound.init(); actions.beginPlace('bench'); });
+    this.onClick('btn-pretzel-stand', () => { sound.init(); actions.beginPlace('pretzel'); });
+    this.onClick('btn-ausschank', () => { sound.init(); actions.beginPlace('ausschank'); });
+    this.onClick('btn-wc', () => { sound.init(); actions.beginPlace('wc'); });
+    this.onClick('btn-beertank', () => { sound.init(); actions.beginPlace('beertank'); });
+    this.onClick('btn-wastetank', () => { sound.init(); actions.beginPlace('wastetank'); });
+    this.onClick('btn-bush', () => { sound.init(); actions.beginPlace('bush'); });
+    this.onClick('btn-flower', () => { sound.init(); actions.beginPlace('flower'); });
+    this.onClick('btn-tree', () => { sound.init(); actions.beginPlace('tree'); });
+    this.onClick('btn-dj', () => { sound.init(); actions.beginPlace('dj'); });
+    this.onClick('btn-path', () => { sound.init(); actions.beginPlace('path'); });
+
+    this.onClick('btn-hire-gardener', () => { sound.init(); game.hireGardener(); });
+    this.onClick('btn-fire-gardener', () => { sound.init(); game.fireGardener(); });
+    this.onClick('btn-hire-seller', () => { sound.init(); game.hireSeller(); });
+    this.onClick('btn-fire-seller', () => { sound.init(); game.fireSeller(); });
+    this.onClick('btn-hire-dj', () => { sound.init(); game.hireDj(); });
+    this.onClick('btn-fire-dj', () => { sound.init(); game.fireDj(); });
+
+    this.onClick('btn-pretzel-order', () => { sound.init(); game.orderPretzels(); });
+    const autoBtn = this.el('btn-pretzel-auto');
+    this.onClick('btn-pretzel-auto', () => {
+      sound.init();
+      const on = game.togglePretzelAutoDeliver();
+      if (autoBtn) autoBtn.textContent = `🔁 Auto-Lieferung: ${on ? 'an' : 'aus'}`;
+    });
 
     this.onClick('btn-hire-bar', () => { sound.init(); game.hireBartender(); });
     this.onClick('btn-fire-bar', () => { sound.init(); game.fireBartender(); });
@@ -90,6 +139,46 @@ export class Controls {
       this.restockSlider.addEventListener('input', () => { this.draggingRestock = true; apply(); });
       this.restockSlider.addEventListener('change', () => { this.draggingRestock = false; apply(); });
     }
+    this.pretzelPriceSlider = this.el('pretzel-price-slider') as HTMLInputElement | null;
+    if (this.pretzelPriceSlider) {
+      const apply = (): void => game.setPretzelPrice(parseFloat(this.pretzelPriceSlider!.value));
+      this.pretzelPriceSlider.addEventListener('input', () => { this.draggingPretzelPrice = true; apply(); });
+      this.pretzelPriceSlider.addEventListener('change', () => { this.draggingPretzelPrice = false; apply(); });
+    }
+    this.pretzelOrderSlider = this.el('pretzel-order-slider') as HTMLInputElement | null;
+    if (this.pretzelOrderSlider) {
+      const apply = (): void => game.setPretzelOrderAmount(parseFloat(this.pretzelOrderSlider!.value));
+      this.pretzelOrderSlider.addEventListener('input', () => { this.draggingPretzelOrder = true; apply(); });
+      this.pretzelOrderSlider.addEventListener('change', () => { this.draggingPretzelOrder = false; apply(); });
+    }
+    this.adSlider = this.el('ad-slider') as HTMLInputElement | null;
+    if (this.adSlider) {
+      const apply = (): void => game.setAdBudget(parseFloat(this.adSlider!.value));
+      this.adSlider.addEventListener('input', () => { this.draggingAd = true; apply(); });
+      this.adSlider.addEventListener('change', () => { this.draggingAd = false; apply(); });
+    }
+  }
+
+  /** Wire the two-level build menu: category row → item row. */
+  private setupBuildMenu(): void {
+    const buildbar = document.getElementById('buildbar');
+    const buildbar2 = document.getElementById('buildbar2');
+    const catButtons = Array.from(document.querySelectorAll<HTMLElement>('.cat-btn'));
+    const groups = Array.from(document.querySelectorAll<HTMLElement>('#buildbar2 .cat-group'));
+    let openCat: string | null = null;
+    const showCat = (cat: string | null): void => {
+      openCat = cat;
+      for (const g of groups) g.classList.toggle('hidden', g.dataset.cat !== cat);
+      for (const b of catButtons) b.classList.toggle('on', b.dataset.cat === cat);
+      buildbar2?.classList.toggle('hidden', cat === null);
+    };
+    this.onClick('btn-build', () => {
+      buildbar?.classList.toggle('hidden');
+      if (buildbar?.classList.contains('hidden')) showCat(null); // closing build → hide items
+    });
+    for (const b of catButtons) {
+      b.addEventListener('click', () => showCat(openCat === b.dataset.cat ? null : (b.dataset.cat ?? null)));
+    }
   }
 
   /** Refresh dynamic labels and disabled states. Called every render frame. */
@@ -101,10 +190,20 @@ export class Controls {
       const v = String(eco.beerPrice);
       if (this.slider.value !== v) this.slider.value = v;
     }
+    this.text('ad-val', `${eco.adBudget} €`);
+    if (this.adSlider && !this.draggingAd) {
+      const v = String(eco.adBudget);
+      if (this.adSlider.value !== v) this.adSlider.value = v;
+    }
     this.text('restock-val', `${eco.restockAmount} L`);
-    if (this.restockSlider && !this.draggingRestock) {
-      const v = String(eco.restockAmount);
-      if (this.restockSlider.value !== v) this.restockSlider.value = v;
+    if (this.restockSlider) {
+      // Cap the restock amount at the current tank volume (grows with upgrades).
+      const max = String(eco.beer.capacity);
+      if (this.restockSlider.max !== max) this.restockSlider.max = max;
+      if (!this.draggingRestock) {
+        const v = String(eco.restockAmount);
+        if (this.restockSlider.value !== v) this.restockSlider.value = v;
+      }
     }
 
     const beerPending = this.game.beerOrderPending();
@@ -121,18 +220,52 @@ export class Controls {
     this.fill('btn-klowagen-fill', kloPending ? this.game.kloProgress() : 0);
     this.disabled('btn-klowagen', kloPending || eco.toilet.current <= 0 || eco.money < eco.klowagenCost());
 
-    const upCost = eco.toiletUpgradeCost();
-    this.label('btn-klo-upgrade', upCost === null
-      ? '🚽 Klo-Tank (max)'
-      : `🚽 Klo-Tank ausbauen (${upCost} €)`);
-    this.disabled('btn-klo-upgrade', !eco.canUpgradeToilet());
-
     this.label('btn-table', `🪑 Tisch (${eco.tableCost()} €)`);
     this.disabled('btn-table', !this.game.tableBuyable());
     this.label('btn-stand', `🧍 Stehtisch (${eco.standCost()} €)`);
     this.disabled('btn-stand', !this.game.standBuyable());
     this.label('btn-bench', `🪵 Bierbank (${eco.benchCost()} €)`);
     this.disabled('btn-bench', !this.game.benchBuyable());
+
+    this.label('btn-pretzel-stand', `🥨 Brezelstand (${eco.pretzelStandCost()} €)`);
+    this.disabled('btn-pretzel-stand', !this.game.pretzelStandBuyable());
+
+    this.label('btn-ausschank', `🍺 Bar (${eco.ausschankCost()} €)`);
+    this.disabled('btn-ausschank', !this.game.ausschankBuyable());
+
+    this.label('btn-wc', `🚽 WC-Haus (${eco.wcHouseCost()} €)`);
+    this.disabled('btn-wc', !this.game.wcBuyable());
+
+    this.label('btn-beertank', `🛢️ Bier-Tank (${eco.beerTankCost()} €)`);
+    this.disabled('btn-beertank', !this.game.beerTankBuyable());
+    this.label('btn-wastetank', `🛢️ Klo-Tank (${eco.wasteTankCost()} €)`);
+    this.disabled('btn-wastetank', !this.game.wasteTankBuyable());
+
+    this.label('btn-bush', `🌳 Busch (${eco.bushCost()} €)`);
+    this.disabled('btn-bush', !this.game.bushBuyable());
+    this.label('btn-flower', `🌸 Blumen (${eco.flowerCost()} €)`);
+    this.disabled('btn-flower', !this.game.flowerBuyable());
+    this.label('btn-tree', `🌳 Baum (${eco.treeCost()} €)`);
+    this.disabled('btn-tree', !this.game.treeBuyable());
+    this.label('btn-dj', `🎧 DJ (${eco.djCost()} €)`);
+    this.disabled('btn-dj', !this.game.djBuyable());
+    this.label('btn-path', `🛤️ Weg (${eco.pathCost()} €)`);
+    this.disabled('btn-path', !this.game.pathBuyable());
+
+    this.text('pretzel-price-val', `${eco.pretzelPrice.toFixed(2)} €`);
+    if (this.pretzelPriceSlider && !this.draggingPretzelPrice) {
+      const v = String(eco.pretzelPrice);
+      if (this.pretzelPriceSlider.value !== v) this.pretzelPriceSlider.value = v;
+    }
+    this.text('pretzel-order-val', String(eco.pretzelOrderAmount));
+    if (this.pretzelOrderSlider && !this.draggingPretzelOrder) {
+      const v = String(eco.pretzelOrderAmount);
+      if (this.pretzelOrderSlider.value !== v) this.pretzelOrderSlider.value = v;
+    }
+    const pretzelOrder = eco.plannedPretzelOrder();
+    const pretzelCost = eco.pretzelOrderCost(pretzelOrder);
+    this.label('btn-pretzel-order', `🥨 Brezn bestellen (${pretzelOrder} · ${pretzelCost} €)`);
+    this.disabled('btn-pretzel-order', pretzelOrder <= 0 || !eco.canAfford(pretzelCost));
 
     this.text('cnt-bar', String(eco.bartenders));
     this.text('cost-bar', `einmalig ${eco.bartenderHireCost()} € · Lohn ${eco.bartenderWage()} €`);
@@ -144,11 +277,28 @@ export class Controls {
     this.disabled('btn-hire-clean', !eco.canAfford(eco.cleanerHireCost()));
     this.disabled('btn-fire-clean', eco.cleaners <= 0);
 
+    this.text('cnt-gardener', String(eco.gardeners));
+    this.text('cost-gardener', `einmalig ${eco.gardenerHireCost()} € · Lohn ${eco.gardenerWage()} €`);
+    this.disabled('btn-hire-gardener', !eco.canAfford(eco.gardenerHireCost()));
+    this.disabled('btn-fire-gardener', eco.gardeners <= 0);
+
+    this.text('cnt-seller', String(eco.sellers));
+    this.text('cost-seller', `einmalig ${eco.sellerHireCost()} € · Lohn ${eco.sellerWage()} €`);
+    this.disabled('btn-hire-seller', !eco.canAfford(eco.sellerHireCost()));
+    this.disabled('btn-fire-seller', eco.sellers <= 0);
+
+    this.text('cnt-dj-staff', String(eco.djWorkers));
+    this.text('cost-dj-staff', `einmalig ${eco.djHireCost()} € · Lohn ${eco.djWage()} €`);
+    this.disabled('btn-hire-dj', !eco.canAfford(eco.djHireCost()));
+    this.disabled('btn-fire-dj', eco.djWorkers <= 0);
+
     this.label('btn-dogcatcher', `🐕 Hundefänger (${eco.dogCatcherCost()} €)`);
     this.disabled('btn-dogcatcher', !this.game.dogCatcherAvailable());
 
     const speed = this.actions.getSpeed();
     for (const s of SPEEDS) this.active(`btn-speed-${s}`, speed === s);
+
+    this.active('btn-demolish', this.actions.isDemolish());
   }
 
   // --- diffed DOM helpers ---------------------------------------------------

@@ -1,8 +1,6 @@
-// Small in-world progress bars drawn onto the buildings:
-//   • the Ausschank shows the current beer's pour progress
-//   • the WC house shows the current toilet dirtiness
-//
-// Both are updated every frame by the simulation.
+// Small in-world progress bar drawn onto the WC house (toilet dirtiness). The
+// bar's per-lane pour gauges are drawn separately by the renderer (their number
+// changes with the bartender count). Updated every frame by the simulation.
 
 import paper from '../scope.js';
 import { PLACES } from '../config.js';
@@ -17,18 +15,11 @@ interface Gauge {
 
 export class WorldGauges {
   readonly group: paper.Group;
-  private readonly beer: Gauge;
   private readonly toilet: Gauge;
 
   constructor() {
     this.group = new paper.Group();
-    this.beer = this.build(PLACES.bar.x, PLACES.bar.y + 30, 130, 12, '#f5b531', 'Zapfhahn');
     this.toilet = this.build(PLACES.toilet.x, PLACES.toilet.y + 32, 88, 12, '#8a5a2a', 'Verschmutzung');
-  }
-
-  /** 0..1 progress of the beer currently being poured. */
-  setBeer(progress: number): void {
-    this.setFill(this.beer, progress);
   }
 
   /** 0..1 toilet dirtiness. */

@@ -3,30 +3,63 @@
 // drawable. Sprites are keyed by entity id; created/updated/removed each frame.
 
 import paper from '../scope.js';
-import { WorldGauges } from './gauges.js';
-import type { Game, Aggregates } from '../sim/game.js';
+import { BAR, WC, DJ } from '../config.js';
+import type { Game, Demolishable } from '../sim/game.js';
+import type { WcHouse } from '../sim/toilets.js';
+import type { Stand } from '../sim/stands.js';
+import type { TankObj } from '../sim/tanks.js';
+import type { DecoItem, DecoKind } from '../sim/deco.js';
+import type { DjObj } from '../sim/djs.js';
+import type { Gardener } from '../sim/entities/gardener.js';
 import type { Person } from '../sim/entities/person.js';
 import type { Dog } from '../sim/entities/dog.js';
 import type { Cleaner } from '../sim/entities/cleaner.js';
 import type { Dogcatcher } from '../sim/entities/dogcatcher.js';
 import type { Truck } from '../sim/entities/truck.js';
 import type { Unit } from '../sim/seating.js';
+import type { Ausschank } from '../sim/bar.js';
+import type { Bartender } from '../sim/entities/bartender.js';
 import type { Litter } from '../sim/litter.js';
 
-interface PersonSprite { g: paper.Group; body: paper.Path; mug: paper.Group; glass: paper.Path; }
+interface PersonSprite { g: paper.Group; body: paper.Path; head: paper.Path; skin: paper.Color; mug: paper.Group; glass: paper.Path; pretzel: paper.Group; }
 interface DogSprite { g: paper.Group; head: paper.Path; tail: paper.Path; }
 interface SimpleSprite { g: paper.Group; body: paper.Path; }
+interface TapGauge { fill: paper.Path; count: paper.PointText; left: number; top: number; w: number; h: number; }
+interface DirtBar { fill: paper.Path; left: number; top: number; w: number; h: number; }
+interface BarSprite { g: paper.Group; taps: number; gauges: TapGauge[]; }
+interface WcSprite { g: paper.Group; stalls: number; gauges: TapGauge[]; dirts: DirtBar[] }
+interface TankSprite { g: paper.Group; fill: paper.Path; kind: 'beer' | 'waste'; left: number; bottom: number; w: number; h: number; }
+interface DecoSprite { g: paper.Group; blobs: paper.Path[]; kind: DecoKind; }
+interface DjSprite { g: paper.Group; rings: paper.Path[]; }
 
 const col = (c: string): paper.Color => new paper.Color(c);
 
 export class Renderer {
+  private readonly pathsG = new paper.Group();
   private readonly tablesG = new paper.Group();
+  private readonly standsG = new paper.Group();
+  private readonly barsG = new paper.Group();
+  private readonly wcsG = new paper.Group();
+  private readonly tanksG = new paper.Group();
+  private readonly decoG = new paper.Group();
+  private readonly djsG = new paper.Group();
   private readonly towelsG = new paper.Group();
   private readonly litterG = new paper.Group();
-  private readonly gauges = new WorldGauges();
   private readonly entitiesG = new paper.Group();
 
   private readonly units = new Map<number, { g: paper.Group; benches: number }>();
+  private readonly pathSprites = new Map<number, paper.Group>();
+  private readonly standSprites = new Map<number, { g: paper.Group; gauge: TapGauge }>();
+  private readonly sellers = new Map<number, SimpleSprite>();
+  private readonly djStaffSprites = new Map<number, SimpleSprite>();
+  private readonly bars = new Map<number, BarSprite>();
+  private readonly wcs = new Map<number, WcSprite>();
+  private readonly tankSprites = new Map<number, TankSprite>();
+  private readonly decoSprites = new Map<number, DecoSprite>();
+  private readonly djSprites = new Map<number, DjSprite>();
+  private hoveredDj: number | null = null;
+  private readonly bartenders = new Map<number, SimpleSprite>();
+  private readonly gardeners = new Map<number, SimpleSprite>();
   private readonly towels = new Map<string, paper.Group>();
   private readonly litterSprites = new Map<number, paper.Group>();
   private readonly people = new Map<number, PersonSprite>();
@@ -35,18 +68,499 @@ export class Renderer {
   private readonly trucks = new Map<number, paper.Group>();
   private dogcatcher: { id: number; s: SimpleSprite } | null = null;
 
-  sync(game: Game, agg: Aggregates): void {
+  // Highlight ring for the guest selected in the guests window.
+  private selectedPerson: number | null = null;
+  private highlightRing: paper.Path | null = null;
+  private pulse = 0;
+
+  /** Ring this guest in the world so they're easy to spot (null = no ring). */
+  setSelected(id: number | null): void {
+    this.selectedPerson = id;
+  }
+
+  sync(game: Game): void {
+    this.syncPaths(game);
     this.syncUnits(game);
+    this.syncStands(game);
+    this.syncBars(game);
+    this.syncWcs(game);
+    this.syncTanks(game);
+    this.syncDeco(game);
+    this.syncDjs(game);
     this.syncTowels(game);
     this.syncLitter(game);
     this.syncPeople(game);
+    this.syncBartenders(game);
+    this.syncGardeners(game);
+    this.syncSellers(game);
+    this.syncDjStaff(game);
     this.syncDogs(game);
     this.syncCleaners(game);
     this.syncDogcatcher(game);
     this.syncTrucks(game);
+  }
 
-    this.gauges.setBeer(agg.beerPour);
-    this.gauges.setToilet(game.eco.toiletDirt / 100);
+  // --- Ausschank buildings + taps -------------------------------------------
+
+  private syncBars(game: Game): void {
+    const live = new Set<number>();
+    for (const a of game.bar.list) {
+      live.add(a.id);
+      let s = this.bars.get(a.id);
+      if (!s || s.taps !== a.taps.length) {
+        // New building, or a tap was added → rebuild the counter at the new width.
+        s?.g.remove();
+        s = this.buildBar(game, a);
+        this.bars.set(a.id, s);
+      }
+      for (let i = 0; i < a.taps.length; i++) {
+        const tg = s.gauges[i]!;
+        const p = game.bar.tapProgress(a, i);
+        tg.fill.visible = p > 0.001;
+        if (tg.fill.visible) tg.fill.bounds = new paper.Rectangle(tg.left, tg.top, tg.w * p, tg.h);
+        const len = game.bar.tapQueueLen(a, i);
+        const txt = len > 0 ? String(len) : '';
+        if (tg.count.content !== txt) tg.count.content = txt;
+      }
+    }
+    for (const [id, s] of this.bars) if (!live.has(id)) { s.g.remove(); this.bars.delete(id); }
+  }
+
+  private buildBar(game: Game, a: Ausschank): BarSprite {
+    const g = new paper.Group();
+    this.barsG.addChild(g);
+    const first = game.bar.tapPoint(a, 0);
+    const last = game.bar.tapPoint(a, a.taps.length - 1);
+    const left = first.x - 34, right = last.x + 34, y = a.pos.y;
+    const w = right - left;
+    const body = new paper.Path.Rectangle(new paper.Rectangle(left, y - 50, w, 100), new paper.Size(10, 10));
+    body.fillColor = col('#7a4a1f');
+    const top = new paper.Path.Rectangle(new paper.Rectangle(left - 5, y - 62, w + 10, 24), new paper.Size(6, 6));
+    top.fillColor = col('#caa472');
+    // Label sits up on the roof band, above the bartender at the counter.
+    const sign = new paper.PointText({
+      point: [(left + right) / 2, y - 45], content: 'BAR 🍺',
+      fillColor: '#5a3a14', fontSize: 15, fontWeight: 'bold', justification: 'center',
+    });
+    g.addChildren([body, top, sign]);
+    // taps along the counter + a queue-gauge under each
+    const gauges: TapGauge[] = [];
+    for (let i = 0; i < a.taps.length; i++) {
+      const tp = game.bar.tapPoint(a, i);
+      const tap = new paper.Path.Rectangle(new paper.Rectangle(tp.x - 3, y - 40, 6, 14), new paper.Size(2, 2));
+      tap.fillColor = col('#d9b14f');
+      tap.strokeColor = col('#8a6a1a');
+      g.addChild(tap);
+      gauges.push(this.buildTapGauge(g, tp.x, game.bar.gaugeY(a)));
+    }
+    // "+" add-tap button with its price (omitted once the building is full)
+    if (a.taps.length < BAR.maxTaps) {
+      this.buildPlusButton(g, game.bar.plusPos(a), `＋ ${game.eco.tapCost()} €`);
+    }
+    return { g, taps: a.taps.length, gauges };
+  }
+
+  private buildTapGauge(g: paper.Group, cx: number, cy: number): TapGauge {
+    const w = 34, h = 8;
+    const left = cx - w / 2, top = cy - h / 2;
+    const bg = new paper.Path.Rectangle(new paper.Rectangle(left, top, w, h), new paper.Size(2, 2));
+    bg.fillColor = new paper.Color(0, 0, 0, 0.5);
+    bg.strokeColor = new paper.Color(1, 1, 1, 0.35);
+    bg.strokeWidth = 1;
+    const fill = new paper.Path.Rectangle(new paper.Rectangle(left, top, 0.001, h), new paper.Size(2, 2));
+    fill.fillColor = col('#f5b531');
+    fill.visible = false;
+    const count = new paper.PointText({
+      point: [cx, top - 4], content: '', fillColor: '#fff',
+      fontSize: 11, fontWeight: 'bold', justification: 'center',
+    });
+    g.addChildren([bg, fill, count]);
+    return { fill, count, left, top, w, h };
+  }
+
+  // --- WC houses + toilets --------------------------------------------------
+
+  private syncWcs(game: Game): void {
+    const live = new Set<number>();
+    for (const h of game.toilets.list) {
+      live.add(h.id);
+      let s = this.wcs.get(h.id);
+      if (!s || s.stalls !== h.stalls.length) {
+        s?.g.remove();
+        s = this.buildWcHouse(game, h);
+        this.wcs.set(h.id, s);
+      }
+      for (let i = 0; i < h.stalls.length; i++) {
+        const tg = s.gauges[i]!;
+        const p = game.toilets.stallProgress(h, i);
+        tg.fill.visible = p > 0.001;
+        if (tg.fill.visible) tg.fill.bounds = new paper.Rectangle(tg.left, tg.top, tg.w * p, tg.h);
+        const len = game.toilets.stallQueueLen(h, i);
+        const txt = len > 0 ? String(len) : '';
+        if (tg.count.content !== txt) tg.count.content = txt;
+        const db = s.dirts[i]!;
+        const d = Math.max(0, Math.min(1, h.stalls[i]!.dirt / 100));
+        db.fill.visible = d > 0.001;
+        if (db.fill.visible) db.fill.bounds = new paper.Rectangle(db.left, db.top, db.w * d, db.h);
+      }
+    }
+    for (const [id, s] of this.wcs) if (!live.has(id)) { s.g.remove(); this.wcs.delete(id); }
+  }
+
+  private buildWcHouse(game: Game, h: WcHouse): WcSprite {
+    const g = new paper.Group();
+    this.wcsG.addChild(g);
+    const first = game.toilets.stallPoint(h, 0);
+    const last = game.toilets.stallPoint(h, h.stalls.length - 1);
+    const left = first.x - 26, right = last.x + 26, y = h.pos.y;
+    const w = right - left;
+    const wall = new paper.Path.Rectangle(new paper.Rectangle(left, y - 34, w, 80), new paper.Size(8, 8));
+    wall.fillColor = col('#6d4c33');
+    const roof = new paper.Path([
+      new paper.Point(left - 8, y - 34),
+      new paper.Point((left + right) / 2, y - 64),
+      new paper.Point(right + 8, y - 34),
+    ]);
+    roof.closed = true;
+    roof.fillColor = col('#4a3122');
+    // Label sits up in the roof, above the queue/occupants.
+    const sign = new paper.PointText({
+      point: [(left + right) / 2, y - 42], content: 'WC',
+      fillColor: '#ffd34d', fontSize: 17, fontWeight: 'bold', justification: 'center',
+    });
+    g.addChildren([wall, roof, sign]);
+    // toilets along the front, each with a progress gauge + its own dirt bar
+    const gauges: TapGauge[] = [];
+    const dirts: DirtBar[] = [];
+    for (let i = 0; i < h.stalls.length; i++) {
+      const sp = game.toilets.stallPoint(h, i);
+      const door = new paper.Path.Rectangle(new paper.Rectangle(sp.x - 11, y - 4, 22, 46), new paper.Size(3, 3));
+      door.fillColor = col('#8a6a45');
+      door.strokeColor = col('#5a4128');
+      door.strokeWidth = 1.5;
+      const icon = new paper.PointText({ point: [sp.x, y + 26], content: '🚽', fontSize: 15, justification: 'center' });
+      g.addChildren([door, icon]);
+      gauges.push(this.buildTapGauge(g, sp.x, game.toilets.gaugeY(h)));
+      dirts.push(this.buildDirtBar(g, sp.x, game.toilets.gaugeY(h) + 10));
+    }
+    // "+" add-toilet button with its price (omitted once the house is full)
+    if (h.stalls.length < WC.maxStalls) {
+      this.buildPlusButton(g, game.toilets.plusPos(h), `＋ ${game.eco.stallCost()} €`);
+    }
+    return { g, stalls: h.stalls.length, gauges, dirts };
+  }
+
+  /** A small green pill button showing "+ <price> €", clickable in the world. */
+  private buildPlusButton(g: paper.Group, pos: { x: number; y: number }, label: string): void {
+    const w = 52, h = 22;
+    const pill = new paper.Path.Rectangle(new paper.Rectangle(pos.x - w / 2, pos.y - h / 2, w, h), new paper.Size(11, 11));
+    pill.fillColor = col('#3f9d57');
+    pill.strokeColor = col('#fff');
+    pill.strokeWidth = 2;
+    const text = new paper.PointText({
+      point: [pos.x, pos.y + 4], content: label, fillColor: '#fff',
+      fontSize: 11, fontWeight: 'bold', justification: 'center',
+    });
+    g.addChildren([pill, text]);
+  }
+
+  /** A slim brown dirtiness bar under a cabin's progress gauge. */
+  private buildDirtBar(g: paper.Group, cx: number, cy: number): DirtBar {
+    const w = 28, h = 5;
+    const left = cx - w / 2, top = cy - h / 2;
+    const bg = new paper.Path.Rectangle(new paper.Rectangle(left, top, w, h), new paper.Size(2, 2));
+    bg.fillColor = new paper.Color(0, 0, 0, 0.45);
+    bg.strokeColor = new paper.Color(1, 1, 1, 0.25);
+    bg.strokeWidth = 1;
+    const fill = new paper.Path.Rectangle(new paper.Rectangle(left, top, 0.001, h), new paper.Size(2, 2));
+    fill.fillColor = col('#8a5a2a');
+    fill.visible = false;
+    g.addChildren([bg, fill]);
+    return { fill, left, top, w, h };
+  }
+
+  // --- storage tanks --------------------------------------------------------
+
+  private syncTanks(game: Game): void {
+    const live = new Set<number>();
+    const beerFrac = game.eco.beer.capacity > 0 ? game.eco.beer.current / game.eco.beer.capacity : 0;
+    const wasteFrac = game.eco.toilet.capacity > 0 ? game.eco.toilet.current / game.eco.toilet.capacity : 0;
+    for (const t of game.tanks.list) {
+      live.add(t.id);
+      let s = this.tankSprites.get(t.id);
+      if (!s) { s = this.buildTank(t); this.tankSprites.set(t.id, s); }
+      const frac = Math.max(0, Math.min(1, s.kind === 'beer' ? beerFrac : wasteFrac));
+      const fh = s.h * frac;
+      s.fill.visible = fh > 0.5;
+      if (s.fill.visible) s.fill.bounds = new paper.Rectangle(s.left, s.bottom - fh, s.w, fh);
+    }
+    for (const [id, s] of this.tankSprites) if (!live.has(id)) { s.g.remove(); this.tankSprites.delete(id); }
+  }
+
+  private buildTank(t: TankObj): TankSprite {
+    const g = new paper.Group();
+    this.tanksG.addChild(g);
+    const { x, y } = t.pos;
+    const w = 34, h = 46;
+    const left = x - w / 2, topY = y - h / 2, bottom = y + h / 2;
+    const shadow = new paper.Path.Ellipse(new paper.Rectangle(x - 20, bottom - 4, 40, 12));
+    shadow.fillColor = col('#000');
+    shadow.opacity = 0.15;
+    const body = new paper.Path.Rectangle(new paper.Rectangle(left, topY, w, h), new paper.Size(7, 7));
+    body.fillColor = col('#3a3f44');
+    body.strokeColor = col('#22262a');
+    body.strokeWidth = 2;
+    // shared-pool fill level (drawn behind a clipping-free simple rect)
+    const fill = new paper.Path.Rectangle(new paper.Rectangle(left, bottom - 0.001, w, 0.001));
+    fill.fillColor = col(t.kind === 'beer' ? '#f5b531' : '#6a8fbf');
+    fill.visible = false;
+    const band = new paper.Path.Rectangle(new paper.Rectangle(left, y - 3, w, 6));
+    band.fillColor = new paper.Color(0, 0, 0, 0.25);
+    const icon = new paper.PointText({
+      point: [x, topY - 4], content: t.kind === 'beer' ? '🍺' : '🚽',
+      fontSize: 13, justification: 'center',
+    });
+    g.addChildren([shadow, body, fill, band, icon]);
+    return { g, fill, kind: t.kind, left, bottom, w, h };
+  }
+
+  // --- decoration (bushes + flowers) ----------------------------------------
+
+  private syncDeco(game: Game): void {
+    const live = new Set<number>();
+    for (const d of game.deco.list) {
+      live.add(d.id);
+      let s = this.decoSprites.get(d.id);
+      if (!s) { s = this.buildDeco(d); this.decoSprites.set(d.id, s); }
+      if (s.blobs.length > 0) {
+        const t = Math.max(0, Math.min(1, d.condition / 100));
+        const c = this.decoColor(s.kind, t);
+        for (const blob of s.blobs) blob.fillColor = c;
+      }
+    }
+    for (const [id, s] of this.decoSprites) if (!live.has(id)) { s.g.remove(); this.decoSprites.delete(id); }
+  }
+
+  private decoColor(kind: DecoKind, t: number): paper.Color {
+    const dead = kind === 'flower' ? [0.5, 0.46, 0.32] : [0.42, 0.38, 0.24];
+    const lush = kind === 'flower' ? [0.85, 0.31, 0.56] : [0.18, 0.56, 0.25];
+    return new paper.Color(
+      dead[0]! + (lush[0]! - dead[0]!) * t,
+      dead[1]! + (lush[1]! - dead[1]!) * t,
+      dead[2]! + (lush[2]! - dead[2]!) * t,
+    );
+  }
+
+  private buildDeco(d: DecoItem): DecoSprite {
+    const g = new paper.Group();
+    this.decoG.addChild(g);
+    const { x, y } = d.pos;
+    if (d.kind === 'tree') {
+      const shadow = new paper.Path.Ellipse(new paper.Rectangle(x - 34, y + 30, 68, 22));
+      shadow.fillColor = col('#000');
+      shadow.opacity = 0.15;
+      const trunk = new paper.Path.Rectangle(new paper.Rectangle(x - 8, y, 16, 40));
+      trunk.fillColor = col('#5a3d22');
+      const crown2 = new paper.Path.Circle(new paper.Point(x - 22, y + 8), 26);
+      crown2.fillColor = col('#388a38');
+      const crown3 = new paper.Path.Circle(new paper.Point(x + 22, y + 8), 26);
+      crown3.fillColor = col('#357d35');
+      const crown = new paper.Path.Circle(new paper.Point(x, y - 10), 38);
+      crown.fillColor = col('#2f6d2f');
+      g.addChildren([shadow, trunk, crown2, crown3, crown]);
+      return { g, blobs: [], kind: d.kind };
+    }
+    const shadow = new paper.Path.Ellipse(new paper.Rectangle(x - 14, y + 8, 28, 8));
+    shadow.fillColor = col('#000');
+    shadow.opacity = 0.13;
+    g.addChild(shadow);
+    const blobs: paper.Path[] = [];
+    if (d.kind === 'bush') {
+      const b2 = new paper.Path.Circle(new paper.Point(x - 9, y + 3), 9);
+      const b3 = new paper.Path.Circle(new paper.Point(x + 9, y + 3), 9);
+      const b1 = new paper.Path.Circle(new paper.Point(x, y - 3), 13);
+      blobs.push(b1, b2, b3);
+      g.addChildren([b2, b3, b1]);
+    } else {
+      const stem = new paper.Path.Rectangle(new paper.Rectangle(x - 1.5, y - 2, 3, 14));
+      stem.fillColor = col('#2f7d35');
+      g.addChild(stem);
+      for (const a of [0, 1, 2, 3, 4]) {
+        const ang = (a / 5) * Math.PI * 2;
+        const petal = new paper.Path.Circle(new paper.Point(x + Math.cos(ang) * 6, y - 4 + Math.sin(ang) * 6), 5);
+        blobs.push(petal);
+        g.addChild(petal);
+      }
+      const center = new paper.Path.Circle(new paper.Point(x, y - 4), 3.5);
+      center.fillColor = col('#ffd34d');
+      g.addChild(center);
+    }
+    return { g, blobs, kind: d.kind };
+  }
+
+  // --- DJs ------------------------------------------------------------------
+
+  /** Show the range rings of only the hovered DJ booth (null = none). */
+  setHoveredDj(id: number | null): void {
+    this.hoveredDj = id;
+  }
+
+  // --- demolish highlight ---------------------------------------------------
+
+  private demolishHi: { g: paper.Group; ring: paper.Path; label: paper.PointText } | null = null;
+
+  /** Highlight the object about to be torn down (red ring + cost), or clear it. */
+  setDemolishHover(d: Demolishable | null): void {
+    if (!d) {
+      if (this.demolishHi) this.demolishHi.g.visible = false;
+      return;
+    }
+    if (!this.demolishHi) {
+      const g = new paper.Group();
+      const ring = new paper.Path.Circle(new paper.Point(0, 0), 1);
+      ring.strokeColor = new paper.Color(0.95, 0.25, 0.25, 0.95);
+      ring.strokeWidth = 3;
+      ring.fillColor = new paper.Color(0.95, 0.25, 0.25, 0.2);
+      ring.dashArray = [7, 5];
+      const label = new paper.PointText({
+        point: [0, 0], content: '', fillColor: '#ff7a7a',
+        fontSize: 13, fontWeight: 'bold', justification: 'center',
+      });
+      g.addChildren([ring, label]);
+      this.demolishHi = { g, ring, label };
+    }
+    const hi = this.demolishHi;
+    hi.g.visible = true;
+    hi.g.bringToFront();
+    hi.ring.bounds = new paper.Rectangle(d.pos.x - d.radius, d.pos.y - d.radius, d.radius * 2, d.radius * 2);
+    hi.label.content = `🗑 ${d.cost} €`;
+    hi.label.position = new paper.Point(d.pos.x, d.pos.y - d.radius - 10);
+  }
+
+  private syncDjs(game: Game): void {
+    const live = new Set<number>();
+    for (const dj of game.djs.list) {
+      live.add(dj.id);
+      let s = this.djSprites.get(dj.id);
+      if (!s) { s = this.buildDj(dj); this.djSprites.set(dj.id, s); }
+      const show = this.hoveredDj === dj.id;
+      for (const r of s.rings) r.visible = show;
+    }
+    for (const [id, s] of this.djSprites) if (!live.has(id)) { s.g.remove(); this.djSprites.delete(id); }
+  }
+
+  private buildDj(dj: DjObj): DjSprite {
+    const g = new paper.Group();
+    this.djsG.addChild(g);
+    const { x, y } = dj.pos;
+    const ring = new paper.Path.Circle(new paper.Point(x, y), DJ.range);
+    ring.fillColor = new paper.Color(0.6, 0.3, 0.9, 0.05);
+    ring.strokeColor = new paper.Color(0.7, 0.4, 0.95, 0.5);
+    ring.strokeWidth = 1.5;
+    ring.dashArray = [8, 6];
+    ring.visible = false;
+    const close = new paper.Path.Circle(new paper.Point(x, y), DJ.tooClose);
+    close.strokeColor = new paper.Color(0.9, 0.3, 0.3, 0.5);
+    close.strokeWidth = 1.5;
+    close.dashArray = [4, 4];
+    close.visible = false;
+    const shadow = new paper.Path.Ellipse(new paper.Rectangle(x - 16, y + 8, 32, 9));
+    shadow.fillColor = col('#000');
+    shadow.opacity = 0.16;
+    const deck = new paper.Path.Rectangle(new paper.Rectangle(x - 16, y - 10, 32, 20), new paper.Size(4, 4));
+    deck.fillColor = col('#222730');
+    deck.strokeColor = col('#11141a');
+    deck.strokeWidth = 2;
+    const icon = new paper.PointText({ point: [x, y + 5], content: '🎧', fontSize: 15, justification: 'center' });
+    g.addChildren([ring, close, shadow, deck, icon]);
+    return { g, rings: [ring, close] };
+  }
+
+  // --- gardeners ------------------------------------------------------------
+
+  private syncGardeners(game: Game): void {
+    const live = new Set<number>();
+    for (const gr of game.gardeners) {
+      live.add(gr.id);
+      let s = this.gardeners.get(gr.id);
+      if (!s) { s = this.buildGardener(gr); this.gardeners.set(gr.id, s); }
+      s.g.position = new paper.Point(gr.pos.x, gr.pos.y);
+      if (gr.moving) s.body.position = new paper.Point(0, 6 + Math.sin(gr.bob) * 1.5);
+    }
+    for (const [id, s] of this.gardeners) if (!live.has(id)) { s.g.remove(); this.gardeners.delete(id); }
+  }
+
+  private buildGardener(gr: Gardener): SimpleSprite {
+    const g = new paper.Group();
+    g.applyMatrix = false;
+    this.entitiesG.addChild(g);
+    const shadow = new paper.Path.Ellipse(new paper.Rectangle(-10, 14, 20, 8));
+    shadow.fillColor = col('#000');
+    shadow.opacity = 0.18;
+    const body = new paper.Path.Circle(new paper.Point(0, 6), 11);
+    body.fillColor = col('#4a6b3a'); // earthy green overalls
+    const head = new paper.Path.Circle(new paper.Point(0, -10), 8);
+    head.fillColor = col('#e0a87a');
+    const brim = new paper.Path.Ellipse(new paper.Rectangle(-9, -17, 18, 6));
+    brim.fillColor = col('#2f8f3f'); // green hat
+    const cap = new paper.Path.Circle(new paper.Point(0, -17), 6);
+    cap.fillColor = col('#3fbf57');
+    g.addChildren([shadow, body, head, brim, cap]);
+    g.position = new paper.Point(gr.pos.x, gr.pos.y);
+    return { g, body };
+  }
+
+  // --- bartenders -----------------------------------------------------------
+
+  private syncBartenders(game: Game): void {
+    const live = new Set<number>();
+    for (const b of game.bartenders) {
+      live.add(b.id);
+      let s = this.bartenders.get(b.id);
+      if (!s) { s = this.buildBartender(b); this.bartenders.set(b.id, s); }
+      s.g.position = new paper.Point(b.pos.x, b.pos.y);
+      if (b.moving) s.body.position = new paper.Point(0, 6 + Math.sin(b.bob) * 1.5);
+    }
+    for (const [id, s] of this.bartenders) if (!live.has(id)) { s.g.remove(); this.bartenders.delete(id); }
+  }
+
+  private buildBartender(b: Bartender): SimpleSprite {
+    const g = new paper.Group();
+    g.applyMatrix = false;
+    this.entitiesG.addChild(g);
+    const shadow = new paper.Path.Ellipse(new paper.Rectangle(-10, 14, 20, 8));
+    shadow.fillColor = col('#000');
+    shadow.opacity = 0.18;
+    const body = new paper.Path.Circle(new paper.Point(0, 6), 11);
+    body.fillColor = col('#3b3b46'); // dark shirt
+    const apron = new paper.Path.Rectangle(new paper.Rectangle(-7, 2, 14, 12), new paper.Size(2, 2));
+    apron.fillColor = col('#d9b14f'); // beer-yellow apron
+    const head = new paper.Path.Circle(new paper.Point(0, -10), 8);
+    head.fillColor = col('#e0a87a');
+    const brim = new paper.Path.Ellipse(new paper.Rectangle(-9, -17, 18, 6));
+    brim.fillColor = col('#e0b400'); // yellow hat
+    const cap = new paper.Path.Circle(new paper.Point(0, -17), 6);
+    cap.fillColor = col('#ffd34d');
+    g.addChildren([shadow, body, apron, head, brim, cap]);
+    g.position = new paper.Point(b.pos.x, b.pos.y);
+    return { g, body };
+  }
+
+  // --- paths ----------------------------------------------------------------
+
+  private syncPaths(game: Game): void {
+    const live = new Set<number>();
+    for (const t of game.paths.list) {
+      live.add(t.id);
+      if (!this.pathSprites.has(t.id)) {
+        const tile = new paper.Path.Circle(new paper.Point(t.pos.x, t.pos.y), 26);
+        tile.fillColor = col('#b7a07a');
+        const g = new paper.Group([tile]);
+        this.pathsG.addChild(g);
+        this.pathSprites.set(t.id, g);
+      }
+    }
+    for (const [id, g] of this.pathSprites) if (!live.has(id)) { g.remove(); this.pathSprites.delete(id); }
   }
 
   // --- tables ---------------------------------------------------------------
@@ -136,6 +650,126 @@ export class Renderer {
     g.addChild(tableTop);
   }
 
+  // --- pretzel stands -------------------------------------------------------
+
+  private syncStands(game: Game): void {
+    const live = new Set<number>();
+    for (const s of game.stands.list) {
+      live.add(s.id);
+      let sp = this.standSprites.get(s.id);
+      if (!sp) { sp = this.buildStand(game, s); this.standSprites.set(s.id, sp); }
+      const p = game.stands.serveProgress(s);
+      sp.gauge.fill.visible = p > 0.001;
+      if (sp.gauge.fill.visible) sp.gauge.fill.bounds = new paper.Rectangle(sp.gauge.left, sp.gauge.top, sp.gauge.w * p, sp.gauge.h);
+      const len = game.stands.queueLen(s);
+      const txt = len > 0 ? String(len) : '';
+      if (sp.gauge.count.content !== txt) sp.gauge.count.content = txt;
+    }
+    for (const [id, sp] of this.standSprites) if (!live.has(id)) { sp.g.remove(); this.standSprites.delete(id); }
+  }
+
+  private buildStand(game: Game, s: Stand): { g: paper.Group; gauge: TapGauge } {
+    const g = new paper.Group();
+    this.standsG.addChild(g);
+    const { x, y } = s.pos;
+    const shadow = new paper.Path.Ellipse(new paper.Rectangle(x - 30, y + 18, 60, 14));
+    shadow.fillColor = col('#000');
+    shadow.opacity = 0.15;
+    // counter / booth body
+    const body = new paper.Path.Rectangle(new paper.Rectangle(x - 28, y - 8, 56, 30), new paper.Size(5, 5));
+    body.fillColor = col('#9c5a2a');
+    body.strokeColor = col('#6e3e1c');
+    body.strokeWidth = 2;
+    // striped awning
+    for (let i = 0; i < 6; i++) {
+      const stripe = new paper.Path.Rectangle(new paper.Rectangle(x - 30 + i * 10, y - 22, 10, 14));
+      stripe.fillColor = col(i % 2 === 0 ? '#d94f4f' : '#f4f0e8');
+      stripe.strokeColor = new paper.Color(0, 0, 0, 0.12);
+      stripe.strokeWidth = 1;
+      g.addChild(stripe);
+    }
+    const roof = new paper.Path.Rectangle(new paper.Rectangle(x - 32, y - 24, 64, 6), new paper.Size(2, 2));
+    roof.fillColor = col('#7a4420');
+    const sign = new paper.PointText({
+      point: [x, y + 12],
+      content: '🥨',
+      fontSize: 18,
+      justification: 'center',
+    });
+    g.insertChild(0, shadow);
+    g.addChildren([body, roof, sign]);
+    const gauge = this.buildTapGauge(g, x, game.stands.gaugeY(s));
+    return { g, gauge };
+  }
+
+  // --- pretzel sellers + DJs (staff) ----------------------------------------
+
+  private syncSellers(game: Game): void {
+    const live = new Set<number>();
+    for (const seller of game.sellers) {
+      live.add(seller.id);
+      let s = this.sellers.get(seller.id);
+      if (!s) { s = this.buildStaffFigure(seller.pos, '#caa05a', '#7a5a20', false, '#e8821f'); this.sellers.set(seller.id, s); }
+      s.g.position = new paper.Point(seller.pos.x, seller.pos.y);
+      // Walking: bob up/down. Serving: sway gently side to side.
+      s.body.position = seller.moving
+        ? new paper.Point(0, 6 + Math.sin(seller.bob) * 1.5)
+        : new paper.Point(Math.sin(seller.bob) * 2, 6);
+    }
+    for (const [id, s] of this.sellers) if (!live.has(id)) { s.g.remove(); this.sellers.delete(id); }
+  }
+
+  private syncDjStaff(game: Game): void {
+    const live = new Set<number>();
+    for (const dj of game.djStaff) {
+      live.add(dj.id);
+      let s = this.djStaffSprites.get(dj.id);
+      if (!s) { s = this.buildStaffFigure(dj.pos, '#2a2a33', '#11141a', true); this.djStaffSprites.set(dj.id, s); }
+      s.g.position = new paper.Point(dj.pos.x, dj.pos.y);
+      // Walking: bob. At the booth: bob to the beat.
+      s.body.position = dj.moving
+        ? new paper.Point(0, 6 + Math.sin(dj.bob) * 1.5)
+        : new paper.Point(0, 6 + Math.sin(dj.bob * 1.7) * 1.8);
+    }
+    for (const [id, s] of this.djStaffSprites) if (!live.has(id)) { s.g.remove(); this.djStaffSprites.delete(id); }
+  }
+
+  /** A staff figure: body + head, optional cap colour and/or headphones (DJ). */
+  private buildStaffFigure(
+    pos: { x: number; y: number }, shirt: string, trim: string, headphones = false, cap?: string,
+  ): SimpleSprite {
+    const g = new paper.Group();
+    g.applyMatrix = false;
+    this.entitiesG.addChild(g);
+    const shadow = new paper.Path.Ellipse(new paper.Rectangle(-10, 14, 20, 8));
+    shadow.fillColor = col('#000');
+    shadow.opacity = 0.18;
+    const body = new paper.Path.Circle(new paper.Point(0, 6), 11);
+    body.fillColor = col(shirt);
+    body.strokeColor = col(trim);
+    body.strokeWidth = 1;
+    const head = new paper.Path.Circle(new paper.Point(0, -10), 8);
+    head.fillColor = col('#e0a87a');
+    g.addChildren([shadow, body, head]);
+    if (cap) {
+      const brim = new paper.Path.Ellipse(new paper.Rectangle(-9, -17, 18, 6));
+      const top = new paper.Path.Circle(new paper.Point(0, -17), 6);
+      brim.fillColor = top.fillColor = col(cap);
+      g.addChildren([brim, top]);
+    }
+    if (headphones) {
+      const band = new paper.Path.Arc(new paper.Point(-8, -10), new paper.Point(0, -19), new paper.Point(8, -10));
+      band.strokeColor = col('#111');
+      band.strokeWidth = 2;
+      const earL = new paper.Path.Circle(new paper.Point(-8, -10), 2.6);
+      const earR = new paper.Path.Circle(new paper.Point(8, -10), 2.6);
+      earL.fillColor = earR.fillColor = col('#111');
+      g.addChildren([band, earL, earR]);
+    }
+    g.position = new paper.Point(pos.x, pos.y);
+    return { g, body };
+  }
+
   // --- towels (one per taken seat) ------------------------------------------
 
   private syncTowels(game: Game): void {
@@ -213,8 +847,41 @@ export class Renderer {
       if (p.moving) s.body.position = new paper.Point(0, 6 + Math.sin(p.bob) * 1.5);
       s.mug.visible = p.mugVisible;
       if (p.mugVisible) s.glass.bounds.height = 2 + 12 * p.beerLevel;
+      s.pretzel.visible = p.pretzelVisible;
+      // The head reddens as the guest grows unhappy (normal skin at ≥50 satisfaction).
+      const t = Math.max(0, Math.min(1, p.satisfaction / 50));
+      s.head.fillColor = new paper.Color(
+        0.86 + (s.skin.red - 0.86) * t,
+        0.22 + (s.skin.green - 0.22) * t,
+        0.22 + (s.skin.blue - 0.22) * t,
+      );
     }
     for (const [id, s] of this.people) if (!live.has(id)) { s.g.remove(); this.people.delete(id); }
+    this.updateHighlight(game);
+  }
+
+  /** Position + pulse the highlight ring on the selected guest, if present. */
+  private updateHighlight(game: Game): void {
+    const target = this.selectedPerson === null ? undefined : game.people.find((p) => p.id === this.selectedPerson);
+    if (!target) {
+      if (this.highlightRing) this.highlightRing.visible = false;
+      return;
+    }
+    if (!this.highlightRing) {
+      const ring = new paper.Path.Circle(new paper.Point(0, 0), 20);
+      ring.applyMatrix = false;
+      ring.strokeColor = col('#ffd34d');
+      ring.strokeWidth = 3;
+      ring.fillColor = new paper.Color(1, 0.83, 0.3, 0.12);
+      this.entitiesG.addChild(ring);
+      this.highlightRing = ring;
+    }
+    this.pulse += 0.15;
+    const s = 1 + Math.sin(this.pulse) * 0.12;
+    this.highlightRing.visible = true;
+    this.highlightRing.position = new paper.Point(target.pos.x, target.pos.y - 2);
+    this.highlightRing.scaling = new paper.Point(s, s);
+    this.highlightRing.bringToFront();
   }
 
   private buildPerson(p: Person): PersonSprite {
@@ -227,7 +894,8 @@ export class Renderer {
     const body = new paper.Path.Circle(new paper.Point(0, 6), 11);
     body.fillColor = col(p.shirt);
     const head = new paper.Path.Circle(new paper.Point(0, -10), 8);
-    head.fillColor = col(p.skin);
+    const skin = col(p.skin);
+    head.fillColor = skin;
     const mug = new paper.Group();
     const glass = new paper.Path.Rectangle(new paper.Rectangle(14, -6, 9, 14), new paper.Size(2, 2));
     glass.fillColor = col('#f5b531');
@@ -236,9 +904,19 @@ export class Renderer {
     foam.fillColor = col('#fff');
     mug.addChildren([glass, foam]);
     mug.visible = false;
-    g.addChildren([shadow, body, head, mug]);
+    // a little pretzel held in the other hand while eating
+    const pretzel = new paper.Group();
+    const ring = new paper.Path.Circle(new paper.Point(-18, 2), 6);
+    ring.strokeColor = col('#8a5a25');
+    ring.strokeWidth = 3;
+    ring.fillColor = new paper.Color(0, 0, 0, 0); // hollow, so it reads as a pretzel
+    const knot = new paper.Path.Circle(new paper.Point(-18, 2), 1.6);
+    knot.fillColor = col('#8a5a25');
+    pretzel.addChildren([ring, knot]);
+    pretzel.visible = false;
+    g.addChildren([shadow, body, head, mug, pretzel]);
     g.position = new paper.Point(p.pos.x, p.pos.y);
-    return { g, body, mug, glass };
+    return { g, body, head, skin, mug, glass, pretzel };
   }
 
   // --- dogs -----------------------------------------------------------------

@@ -70,12 +70,13 @@
     .fill.dirt    { background: linear-gradient(90deg, #6a4a22, #9a6a32); }
     .fill.sat     { background: linear-gradient(90deg, #3f9d57, #6fe08c); }
     .fill.thirst  { background: linear-gradient(90deg, #b07a2a, #e0b14f); }
+    .fill.hunger  { background: linear-gradient(90deg, #a9521f, #e08a3f); }
     .fill.bladder { background: linear-gradient(90deg, #4f7fd9, #7fb0ff); }
     .fill.rep     { background: linear-gradient(90deg, #b04fa0, #f08cdc); }
     .small { font-size: 11px; opacity: 0.8; margin-top: 2px; }
 
     /* management panel (top-right) */
-    #manage { top: 10px; right: 10px; width: 230px; }
+    #manage { top: 10px; right: 10px; width: 230px; max-height: calc(100vh - 20px); overflow-y: auto; }
     #manage .price {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 6px;
@@ -121,6 +122,27 @@
     }
     #overlay-title { font-size: 48px; font-weight: 800; color: #ffd34d; margin-bottom: 10px; }
     #overlay-sub { font-size: 18px; }
+    .big-btn { font-size: 18px; padding: 12px 22px; }
+    #overlay .big-btn { margin-top: 22px; }
+
+    /* settings + game overlays */
+    #settingswin, #gamewin { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; z-index: 16; }
+    #settingswin.hidden, #gamewin.hidden { display: none; }
+    #settingswin button, #gamewin button { width: 100%; margin-bottom: 6px; }
+    #settings-head, #game-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    #settings-head h3, #game-head h3 { margin: 0; }
+    #settings-close, #game-close { margin: 0; width: auto; }
+
+    /* start dialog */
+    #startwin {
+      position: fixed; inset: 0; z-index: 30;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, 0.82); text-align: center;
+    }
+    #startwin.hidden { display: none; }
+    #start-title { font-size: 40px; font-weight: 800; color: #ffd34d; margin-bottom: 8px; }
+    #start-sub { font-size: 18px; margin-bottom: 22px; }
+    #start-buttons { display: flex; gap: 16px; justify-content: center; }
 
     button {
       background: #ffd34d;
@@ -147,22 +169,22 @@
     /* clock + speed (bottom-left) */
     #clock { bottom: 14px; left: 14px; text-align: center; min-width: 92px; }
     #clock-time { font-size: 26px; font-weight: 800; color: #ffd34d; line-height: 1.1; }
-    #wage-pop {
-      position: absolute; bottom: 100%; left: 50%;
-      transform: translateX(-50%);
-      color: #ff7a7a; font-weight: 800; font-size: 18px;
-      opacity: 0; pointer-events: none; white-space: nowrap;
+    .money-pop {
+      position: absolute; bottom: 100%; left: 0;
+      font-weight: 800; font-size: 16px;
+      pointer-events: none; white-space: nowrap;
       text-shadow: 0 1px 3px #000;
+      animation: moneypop 1.8s ease-out forwards;
     }
-    #wage-pop.show { animation: wagepop 2s ease-out; }
-    @keyframes wagepop {
-      0%   { opacity: 0; transform: translate(-50%, 8px); }
+    @keyframes moneypop {
+      0%   { opacity: 0; transform: translate(var(--pop-dx, 0px), 8px); }
       18%  { opacity: 1; }
-      100% { opacity: 0; transform: translate(-50%, -24px); }
+      100% { opacity: 0; transform: translate(var(--pop-dx, 0px), -26px); }
     }
     #speed { display: flex; gap: 4px; margin-top: 7px; justify-content: center; }
     button.spd { width: 30px; padding: 5px 0; font-size: 12px; box-shadow: none; }
     button.spd.on { background: #fff; outline: 2px solid #ffd34d; }
+    #btn-demolish.on { background: #ff9a6a; outline: 2px solid #ff7a7a; }
 
     /* bottom sandbox controls */
     #controls {
@@ -173,6 +195,229 @@
       display: flex;
       gap: 10px;
     }
+
+    /* build bar: sits just above the controls row, toggled by 🔨 Bauen */
+    #buildbar {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+    }
+    #buildbar.hidden { display: none; }
+
+    /* build menu second row (items of the chosen category) */
+    #buildbar2 {
+      position: fixed;
+      bottom: 106px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+    }
+    #buildbar2.hidden { display: none; }
+    .cat-group { display: flex; gap: 10px; }
+    .cat-group.hidden { display: none; }
+    .cat-btn.on { background: #fff; outline: 2px solid #ffd34d; }
+
+    /* pretzel management overlay (opens on clicking a stand) */
+    #pretzelwin { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 240px; z-index: 15; }
+    #pretzelwin.hidden { display: none; }
+    #pretzelwin input[type=range] { width: 100%; margin: 2px 0 10px; accent-color: #ffd34d; }
+    #pretzelwin button { width: 100%; margin-bottom: 6px; }
+    #pretzelwin .price { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    #pretzel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    #pretzel-head h3 { margin: 0; }
+    #pretzel-close { margin: 0; width: auto; }
+
+    /* upgrades window (centered, toggled) */
+    #upgradewin {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 260px;
+      z-index: 15;
+    }
+    #upgradewin.hidden { display: none; }
+    #upgradewin h3 { margin: 0 0 10px; }
+    #upgradewin button { width: 100%; margin-bottom: 8px; }
+    #upgradewin button:last-child { margin-bottom: 0; }
+
+    /* debug log window (bottom-right) */
+    #logwin {
+      bottom: 14px;
+      right: 10px;
+      width: 430px;
+      max-width: calc(100vw - 20px);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    #logwin.hidden { display: none; }
+    #log-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    #log-head h3 { margin: 0; flex: none; }
+    #log-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      flex: 1;
+      font-size: 11px;
+      text-transform: none;
+    }
+    #log-filters label {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      opacity: 0.9;
+    }
+    #log-filters input { accent-color: #ffd34d; margin: 0; }
+    button.logbtn {
+      padding: 4px 9px;
+      font-size: 11px;
+      box-shadow: none;
+    }
+    #log-list {
+      height: 200px;
+      max-height: 34vh;
+      overflow-y: auto;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
+    .log-row {
+      display: flex;
+      gap: 7px;
+      align-items: baseline;
+      padding: 1px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .log-time { color: #9fb38a; flex: none; }
+    .log-tag {
+      flex: none;
+      font-weight: 700;
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      padding: 1px 4px;
+      border-radius: 4px;
+      align-self: center;
+    }
+    .cat-mood       .log-tag { background: rgba(111, 176, 255, 0.22); color: #9ec3ef; }
+    .cat-reputation .log-tag { background: rgba(240, 140, 220, 0.25); color: #f3aee4; }
+    .cat-money      .log-tag { background: rgba(245, 181, 49, 0.22);  color: #ffd98a; }
+    .cat-staff      .log-tag { background: rgba(111, 224, 140, 0.2);  color: #95e8ad; }
+    .log-msg { flex: 1; color: #e8eede; }
+    .log-delta { flex: none; font-weight: 700; }
+    .log-delta.up   { color: #6fe08c; }
+    .log-delta.down { color: #ff7a7a; }
+    .log-row.clickable { cursor: pointer; }
+    .log-row.clickable:hover { background: rgba(255, 211, 77, 0.14); }
+    .log-row.clickable .log-msg { text-decoration: underline dotted rgba(255, 255, 255, 0.4); }
+
+    /* guests window (list left, timeline right) */
+    #guestwin {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 720px;
+      max-width: calc(100vw - 24px);
+      display: flex;
+      flex-direction: column;
+      z-index: 15;
+    }
+    #guestwin.hidden { display: none; }
+    #guest-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    #guest-head h3 { margin: 0; flex: none; }
+    #guest-count { flex: 1; opacity: 0.7; }
+    #guest-body {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 10px;
+      height: 60vh;
+      min-height: 260px;
+    }
+    #guest-list {
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .guest-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .guest-item:hover { background: rgba(255, 255, 255, 0.07); }
+    .guest-item.sel { background: rgba(255, 211, 77, 0.18); }
+    .guest-dot {
+      flex: none;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #7c8a6e; /* grey = gone */
+    }
+    .guest-dot.present { background: #6fe08c; box-shadow: 0 0 6px #6fe08c; }
+    .guest-text { min-width: 0; }
+    .guest-name { font-weight: 600; }
+    .guest-sub {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0.7;
+    }
+    #guest-right {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    #guest-stats {
+      flex: none;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    #guest-stats.hidden { display: none; }
+    .gstat-name { font-weight: 700; color: #ffd34d; margin-bottom: 6px; }
+    .gstat-top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      margin-bottom: 7px;
+      font-size: 12px;
+    }
+    .gstat-gone { font-size: 12px; opacity: 0.7; }
+    .gstat-row { font-size: 11px; opacity: 0.85; margin: 4px 0 1px; }
+    #guest-log {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    #guest-log-empty { padding: 8px; opacity: 0.6; }
   </style>
 </head>
 <body>
@@ -186,21 +431,22 @@
     <div class="row"><span>Geld</span><b><span id="stat-money">0 €</span></b></div>
     <div class="row"><span>Bier verkauft</span><b><span id="stat-beers">0</span> 🍺</b></div>
     <div class="row"><span>Geld / Besucher</span><b><span id="stat-permoney">0 €</span></b></div>
-    <div class="row"><span>Schankkräfte</span><b><span id="stat-bartenders">0</span> 🍺</b></div>
-    <div class="row"><span>Putzkräfte</span><b><span id="stat-cleaners">0</span> 🧹</b></div>
     <div class="row"><span>Unrat</span><b><span id="stat-litter">0</span> 💩</b></div>
+    <div class="row"><span>Brezn-Vorrat</span><b><span id="stat-pretzels">0</span> 🥨</b></div>
 
     <div class="small">Bier-Tank</div>
     <div class="gauge"><span class="fill beer" id="bar-beer-fill"></span><span class="lbl" id="bar-beer-txt">–</span></div>
     <div class="small">Klo-Tank (Klowagen leert)</div>
     <div class="gauge"><span class="fill toilet" id="bar-toilet-fill"></span><span class="lbl" id="bar-toilet-txt">–</span></div>
-    <div class="small">Verschmutzung (Putzkraft reinigt)</div>
+    <div class="small">Verschmutzung Ø (alle WCs)</div>
     <div class="gauge"><span class="fill dirt" id="meter-dirt-fill"></span><span class="lbl" id="meter-dirt-txt">0</span></div>
 
     <div class="small">Zufriedenheit Ø</div>
     <div class="gauge"><span class="fill sat" id="meter-sat-fill"></span><span class="lbl" id="meter-sat-txt">0</span></div>
     <div class="small">Durst Ø</div>
     <div class="gauge"><span class="fill thirst" id="meter-thirst-fill"></span><span class="lbl" id="meter-thirst-txt">0</span></div>
+    <div class="small">Hunger Ø</div>
+    <div class="gauge"><span class="fill hunger" id="meter-hunger-fill"></span><span class="lbl" id="meter-hunger-txt">0</span></div>
     <div class="small">Blase Ø</div>
     <div class="gauge"><span class="fill bladder" id="meter-bladder-fill"></span><span class="lbl" id="meter-bladder-txt">0</span></div>
     <div class="small">Ruf (Langzeit) — Overall</div>
@@ -211,32 +457,55 @@
   <div id="manage" class="panel">
     <h3>⚙️ Management</h3>
     <div class="price"><span>Bierpreis</span><b><span id="price-val">4.00 €</span></b></div>
-    <input id="price-slider" type="range" min="1" max="8" step="0.5" value="4">
+    <input id="price-slider" type="range" min="1" max="16" step="0.5" value="4">
     <div class="price"><span>Nachkaufmenge</span><b><span id="restock-val">40 L</span></b></div>
     <input id="restock-slider" type="range" min="0" max="200" step="10" value="40">
     <button id="btn-beer"><span class="btn-fill" id="btn-beer-fill"></span><span class="btn-label" id="btn-beer-label">🍺 Bier bestellen</span></button>
     <button id="btn-klowagen"><span class="btn-fill" id="btn-klowagen-fill"></span><span class="btn-label" id="btn-klowagen-label">🚽 Klowagen</span></button>
-    <button id="btn-klo-upgrade">🚽 Klo-Tank ausbauen</button>
-    <button id="btn-table">🪑 Tisch</button>
-    <button id="btn-stand">🧍 Stehtisch</button>
-    <button id="btn-bench">🪵 Bierbank</button>
+
+    <div class="price"><span>📣 Werbebudget/Tag</span><b><span id="ad-val">0 €</span></b></div>
+    <input id="ad-slider" type="range" min="0" max="200" step="10" value="0">
 
     <h4>👥 Personal</h4>
     <div class="staff">
-      <button id="btn-hire-bar" class="pm">＋</button>
+      <button id="btn-fire-bar" class="pm">－</button>
       <div class="staff-title">
         <div>Schankkraft <b><span id="cnt-bar">1</span></b></div>
         <div class="small" id="cost-bar">einmalig – · Lohn –</div>
       </div>
-      <button id="btn-fire-bar" class="pm">－</button>
+      <button id="btn-hire-bar" class="pm">＋</button>
     </div>
     <div class="staff">
-      <button id="btn-hire-clean" class="pm">＋</button>
+      <button id="btn-fire-clean" class="pm">－</button>
       <div class="staff-title">
         <div>Putzkraft <b><span id="cnt-clean">1</span></b></div>
         <div class="small" id="cost-clean">einmalig – · Lohn –</div>
       </div>
-      <button id="btn-fire-clean" class="pm">－</button>
+      <button id="btn-hire-clean" class="pm">＋</button>
+    </div>
+    <div class="staff">
+      <button id="btn-fire-gardener" class="pm">－</button>
+      <div class="staff-title">
+        <div>Gärtner <b><span id="cnt-gardener">0</span></b></div>
+        <div class="small" id="cost-gardener">einmalig – · Lohn –</div>
+      </div>
+      <button id="btn-hire-gardener" class="pm">＋</button>
+    </div>
+    <div class="staff">
+      <button id="btn-fire-seller" class="pm">－</button>
+      <div class="staff-title">
+        <div>Brezelverkäufer <b><span id="cnt-seller">0</span></b></div>
+        <div class="small" id="cost-seller">einmalig – · Lohn –</div>
+      </div>
+      <button id="btn-hire-seller" class="pm">＋</button>
+    </div>
+    <div class="staff">
+      <button id="btn-fire-dj" class="pm">－</button>
+      <div class="staff-title">
+        <div>DJ <b><span id="cnt-dj-staff">0</span></b></div>
+        <div class="small" id="cost-dj-staff">einmalig – · Lohn –</div>
+      </div>
+      <button id="btn-hire-dj" class="pm">＋</button>
     </div>
 
     <button id="btn-dogcatcher">🐕 Hundefänger</button>
@@ -244,17 +513,125 @@
 
   <!-- Sandbox controls -->
   <div id="controls">
-    <button id="btn-pause">⏸ Pause</button>
-    <button id="btn-ambient">🎵 Atmo</button>
+    <button id="btn-build">🔨 Bauen</button>
+    <button id="btn-demolish">🗑️ Abreißen</button>
+    <button id="btn-logs">🐞 Logs</button>
+    <button id="btn-guests">👥 Gäste</button>
+    <button id="btn-settings">⚙️ Einstellungen</button>
+    <button id="btn-game">🎮 Spiel</button>
+  </div>
+
+  <!-- Game menu -->
+  <div id="gamewin" class="panel hidden">
+    <div id="game-head">
+      <h3>🎮 Spiel</h3>
+      <button id="game-close" class="logbtn">✕</button>
+    </div>
+    <button id="btn-game-restart">🔄 Neu starten</button>
+    <button id="btn-cheat-money">💰 +1000 € (Test)</button>
+  </div>
+
+  <!-- Settings (sound + ambience) -->
+  <div id="settingswin" class="panel hidden">
+    <div id="settings-head">
+      <h3>⚙️ Einstellungen</h3>
+      <button id="settings-close" class="logbtn">✕</button>
+    </div>
     <button id="btn-mute">🔊 Ton an</button>
+    <button id="btn-ambient">🎵 Atmo</button>
+  </div>
+
+  <!-- Build menu: category row (🔨 Bauen) → item row -->
+  <div id="buildbar" class="hidden">
+    <button class="cat-btn" data-cat="drinks">🍺 Getränke</button>
+    <button class="cat-btn" data-cat="food">🥨 Essen</button>
+    <button class="cat-btn" data-cat="seat">🪑 Sitzen</button>
+    <button class="cat-btn" data-cat="wc">🚽 Klo</button>
+    <button class="cat-btn" data-cat="deco">🌳 Deko</button>
+    <button class="cat-btn" data-cat="general">🛤️ Generell</button>
+  </div>
+  <div id="buildbar2" class="hidden">
+    <div class="cat-group hidden" data-cat="drinks">
+      <button id="btn-ausschank">🍺 Bar</button>
+      <button id="btn-beertank">🛢️ Bier-Tank</button>
+    </div>
+    <div class="cat-group hidden" data-cat="food">
+      <button id="btn-pretzel-stand">🥨 Brezelstand</button>
+    </div>
+    <div class="cat-group hidden" data-cat="seat">
+      <button id="btn-table">🪑 Tisch</button>
+      <button id="btn-stand">🧍 Stehtisch</button>
+      <button id="btn-bench">🪵 Bierbank</button>
+    </div>
+    <div class="cat-group hidden" data-cat="wc">
+      <button id="btn-wc">🚽 WC-Haus</button>
+      <button id="btn-wastetank">🛢️ Klo-Tank</button>
+    </div>
+    <div class="cat-group hidden" data-cat="deco">
+      <button id="btn-bush">🌿 Busch</button>
+      <button id="btn-flower">🌸 Blumen</button>
+      <button id="btn-tree">🌳 Baum</button>
+      <button id="btn-dj">🎧 DJ</button>
+    </div>
+    <div class="cat-group hidden" data-cat="general">
+      <button id="btn-path">🛤️ Weg</button>
+    </div>
+  </div>
+
+  <!-- Pretzel management (opens when a pretzel stand is clicked) -->
+  <div id="pretzelwin" class="panel hidden">
+    <div id="pretzel-head">
+      <h3>🥨 Brezelstand</h3>
+      <button id="pretzel-close" class="logbtn">✕</button>
+    </div>
+    <div class="price"><span>Brezelpreis</span><b><span id="pretzel-price-val">2.50 €</span></b></div>
+    <input id="pretzel-price-slider" type="range" min="1" max="8" step="0.5" value="2.5">
+    <div class="price"><span>Bestellmenge</span><b><span id="pretzel-order-val">30</span></b></div>
+    <input id="pretzel-order-slider" type="range" min="0" max="60" step="5" value="30">
+    <button id="btn-pretzel-order">🥨 Brezn bestellen</button>
+    <button id="btn-pretzel-auto">🔁 Auto-Lieferung: aus</button>
+  </div>
+
+  <!-- Debug log window -->
+  <div id="logwin" class="panel hidden">
+    <div id="log-head">
+      <h3>🐞 Logs</h3>
+      <div id="log-filters">
+        <label><input type="checkbox" data-cat="mood" checked> Stimmung</label>
+        <label><input type="checkbox" data-cat="reputation" checked> Langzeit-Ruf</label>
+        <label><input type="checkbox" data-cat="money" checked> Geld</label>
+        <label><input type="checkbox" data-cat="staff" checked> Personal</label>
+      </div>
+      <button id="log-clear" class="logbtn">Leeren</button>
+    </div>
+    <div id="log-list"></div>
+  </div>
+
+  <!-- Guests window: list left, selected guest's timeline right -->
+  <div id="guestwin" class="panel hidden">
+    <div id="guest-head">
+      <h3>👥 Gäste</h3>
+      <span id="guest-count" class="small">0</span>
+      <button id="guest-clear" class="logbtn">Leeren</button>
+    </div>
+    <div id="guest-body">
+      <div id="guest-list"></div>
+      <div id="guest-right">
+        <div id="guest-stats" class="hidden"></div>
+        <div id="guest-log">
+          <div id="guest-log-empty" class="small">Gast links auswählen, um seinen Verlauf zu sehen…</div>
+          <div id="guest-log-list"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Clock + speed (bottom-left) -->
   <div id="clock" class="panel">
-    <div id="wage-pop"></div>
     <div id="clock-time">10:00</div>
     <div class="small" id="clock-note">geöffnet</div>
     <div id="speed">
+      <button id="btn-pause" class="spd">⏸</button>
       <button id="btn-speed-1" class="spd on">1×</button>
       <button id="btn-speed-2" class="spd">2×</button>
       <button id="btn-speed-4" class="spd">4×</button>
@@ -267,6 +644,19 @@
     <div>
       <div id="overlay-title">–</div>
       <div id="overlay-sub"></div>
+      <button id="btn-restart" class="big-btn">🔄 Neue Runde</button>
+    </div>
+  </div>
+
+  <!-- Start dialog: basics vs. blank field -->
+  <div id="startwin">
+    <div>
+      <div id="start-title">🍺 Biergarten-Tycoon</div>
+      <div id="start-sub">Wie möchtest du starten?</div>
+      <div id="start-buttons">
+        <button id="btn-start-basics" class="big-btn">🍻 Mit Basics</button>
+        <button id="btn-start-blank" class="big-btn">🌱 Leeres Feld</button>
+      </div>
     </div>
   </div>
 
