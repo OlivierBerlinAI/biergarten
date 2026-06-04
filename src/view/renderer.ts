@@ -22,7 +22,7 @@ import type { Bartender } from '../sim/entities/bartender.js';
 import type { Litter } from '../sim/litter.js';
 
 interface PersonSprite { g: paper.Group; body: paper.Path; head: paper.Path; skin: paper.Color; mug: paper.Group; glass: paper.Path; pretzel: paper.Group; }
-interface DogSprite { g: paper.Group; head: paper.Path; tail: paper.Path; }
+interface DogSprite { g: paper.Group; tail: paper.Path; }
 interface SimpleSprite { g: paper.Group; body: paper.Path; }
 interface TapGauge { fill: paper.Path; count: paper.PointText; left: number; top: number; w: number; h: number; }
 interface DirtBar { fill: paper.Path; left: number; top: number; w: number; h: number; }
@@ -928,7 +928,7 @@ export class Renderer {
       let s = this.dogs.get(d.id);
       if (!s) { s = this.buildDog(d); this.dogs.set(d.id, s); }
       s.g.position = new paper.Point(d.pos.x, d.pos.y);
-      s.head.position = new paper.Point(d.facing >= 0 ? 12 : -12, -3);
+      s.g.scaling = new paper.Point(d.facing >= 0 ? 1 : -1, 1); // flip the whole dog to face travel direction
       s.tail.segments[1]!.point = new paper.Point(-20, -8 + Math.sin(d.wag) * 4);
     }
     for (const [id, s] of this.dogs) if (!live.has(id)) { s.g.remove(); this.dogs.delete(id); }
@@ -953,7 +953,7 @@ export class Renderer {
     tail.strokeWidth = 3;
     g.addChildren([shadow, tail, body, head, ear]);
     g.position = new paper.Point(d.pos.x, d.pos.y);
-    return { g, head, tail };
+    return { g, tail };
   }
 
   // --- cleaners + dog catcher ----------------------------------------------
