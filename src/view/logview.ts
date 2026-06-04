@@ -24,6 +24,7 @@ export class LogView {
       });
     });
     document.getElementById('log-clear')?.addEventListener('click', () => this.clear());
+    document.getElementById('log-close')?.addEventListener('click', () => this.win?.classList.add('hidden'));
     document.getElementById('btn-logs')?.addEventListener('click', () => this.win?.classList.toggle('hidden'));
   }
 

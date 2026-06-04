@@ -47,6 +47,7 @@ export class GuestsPanel {
   constructor(private readonly renderer: Renderer) {
     document.getElementById('btn-guests')?.addEventListener('click', () => this.win?.classList.toggle('hidden'));
     document.getElementById('guest-clear')?.addEventListener('click', () => this.clear());
+    document.getElementById('guest-close')?.addEventListener('click', () => this.win?.classList.add('hidden'));
   }
 
   /** Fold the freshly drained entries into per-guest histories + the list. */

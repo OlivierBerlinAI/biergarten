@@ -131,7 +131,18 @@
     #settingswin button, #gamewin button { width: 100%; margin-bottom: 6px; }
     #settings-head, #game-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     #settings-head h3, #game-head h3 { margin: 0; }
-    #settings-close, #game-close { margin: 0; width: auto; }
+
+    /* Square (1:1) close buttons in every window header. The two-id specificity
+       beats the "#xwin button { width:100% }" rules; flex:none keeps them square. */
+    #settingswin #settings-close,
+    #gamewin #game-close,
+    #pretzelwin #pretzel-close,
+    #logwin #log-close,
+    #guestwin #guest-close {
+      width: 28px; height: 28px; padding: 0; margin: 0; flex: none;
+      font-size: 15px; line-height: 1; box-shadow: none;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
 
     /* start dialog */
     #startwin {
@@ -229,7 +240,6 @@
     #pretzelwin .price { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
     #pretzel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     #pretzel-head h3 { margin: 0; }
-    #pretzel-close { margin: 0; width: auto; }
 
     /* upgrades window (centered, toggled) */
     #upgradewin {
@@ -595,6 +605,7 @@
         <label><input type="checkbox" data-cat="staff" checked> Personal</label>
       </div>
       <button id="log-clear" class="logbtn">Leeren</button>
+      <button id="log-close" class="logbtn">✕</button>
     </div>
     <div id="log-list"></div>
   </div>
@@ -605,6 +616,7 @@
       <h3>👥 Gäste</h3>
       <span id="guest-count" class="small">0</span>
       <button id="guest-clear" class="logbtn">Leeren</button>
+      <button id="guest-close" class="logbtn">✕</button>
     </div>
     <div id="guest-body">
       <div id="guest-list"></div>
