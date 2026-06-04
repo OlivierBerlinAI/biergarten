@@ -383,7 +383,6 @@ export class Person {
       // a bargain pleases (positive delta), a rip-off annoys (negative delta).
       const moodVsExpected = (ECONOMY.expectedPrice - price) * GUEST.satPerEuroVsExpected;
       this.changeSat(w, this._satisfaction + moodVsExpected, 'Bier bezahlt');
-      this.thirstDelta = rand(GUEST.thirstPerBeerMin, GUEST.thirstPerBeerMax);
       this.bladderDelta = rand(GUEST.bladderPerBeerMin, GUEST.bladderPerBeerMax);
       this.state = 'toSeat';
       w.play('pour');
@@ -404,6 +403,7 @@ export class Person {
     if (this.moveTo(w.seating.seatPoint(this.seat!))) {
       this.drinkDuration = Math.floor(rand(180, 420));
       this.drinkTimer = this.drinkDuration;
+      this.thirstDelta = this._thirst; // one beer fully quenches: drain to 0 over the drink
       this.state = 'drinking';
       w.play('cheers');
     }
@@ -418,6 +418,7 @@ export class Person {
     this.beerLevel = Math.max(0, this.drinkTimer / this.drinkDuration);
     if (chance(0.008)) w.play('sip');
     if (this.drinkTimer <= 0) {
+      this._thirst = 0; // a finished beer leaves the guest fully refreshed
       this.mugVisible = false;
       this.enterChilling();
     }

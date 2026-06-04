@@ -389,11 +389,10 @@ export const GUEST = {
   /** Money a single guest is willing to spend in total. */
   walletMin: 8,
   walletMax: 26,
-  /** Guests arrive with little thirst; it builds up while they sit. */
+  /** Guests arrive with little thirst; it builds up while they sit. A finished
+   *  beer fully quenches it (thirst → 0), so there's no per-beer amount. */
   thirstStartMin: 10,
   thirstStartMax: 35,
-  thirstPerBeerMin: 25,
-  thirstPerBeerMax: 45,
   /** Above this thirst a seated guest gets up for (another) beer. */
   thirstWantBeer: 30,
   /** Passive thirst gained per frame while not drinking. Each guest rolls their
