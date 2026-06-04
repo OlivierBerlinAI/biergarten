@@ -77,7 +77,8 @@ export class Placement {
   private onMove(pt: paper.Point): void {
     this.last = pt;
     if (this.demolishMode) {
-      this.renderer.setDemolishHover(this.game.demolishableAt({ x: pt.x, y: pt.y }));
+      const d = this.game.demolishableAt({ x: pt.x, y: pt.y });
+      this.renderer.setDemolishHover(d, !d || this.game.eco.canAfford(d.cost));
       return;
     }
     if (this.kind) {
@@ -98,8 +99,9 @@ export class Placement {
     if (this.demolishMode) {
       const d = this.game.demolishableAt({ x: pt.x, y: pt.y });
       if (d) {
-        this.game.demolish(d);
-        this.renderer.setDemolishHover(this.game.demolishableAt({ x: pt.x, y: pt.y })); // refresh after removal
+        this.game.demolish(d); // no-ops if unaffordable (highlight already shows it greyed)
+        const next = this.game.demolishableAt({ x: pt.x, y: pt.y }); // refresh after removal
+        this.renderer.setDemolishHover(next, !next || this.game.eco.canAfford(next.cost));
       }
       return;
     }

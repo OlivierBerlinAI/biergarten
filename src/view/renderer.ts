@@ -420,8 +420,9 @@ export class Renderer {
 
   private demolishHi: { g: paper.Group; ring: paper.Path; label: paper.PointText } | null = null;
 
-  /** Highlight the object about to be torn down (red ring + cost), or clear it. */
-  setDemolishHover(d: Demolishable | null): void {
+  /** Highlight the object about to be torn down: red when affordable, grey +
+   *  "zu teuer" when the teardown cost can't be paid. Pass null to clear it. */
+  setDemolishHover(d: Demolishable | null, affordable = true): void {
     if (!d) {
       if (this.demolishHi) this.demolishHi.g.visible = false;
       return;
@@ -429,22 +430,24 @@ export class Renderer {
     if (!this.demolishHi) {
       const g = new paper.Group();
       const ring = new paper.Path.Circle(new paper.Point(0, 0), 1);
-      ring.strokeColor = new paper.Color(0.95, 0.25, 0.25, 0.95);
       ring.strokeWidth = 3;
-      ring.fillColor = new paper.Color(0.95, 0.25, 0.25, 0.2);
       ring.dashArray = [7, 5];
       const label = new paper.PointText({
-        point: [0, 0], content: '', fillColor: '#ff7a7a',
+        point: [0, 0], content: '',
         fontSize: 13, fontWeight: 'bold', justification: 'center',
       });
       g.addChildren([ring, label]);
       this.demolishHi = { g, ring, label };
     }
     const hi = this.demolishHi;
+    // Red = ready to tear down; grey = you can't afford the teardown cost.
+    hi.ring.strokeColor = affordable ? new paper.Color(0.95, 0.25, 0.25, 0.95) : new paper.Color(0.6, 0.62, 0.64, 0.9);
+    hi.ring.fillColor = affordable ? new paper.Color(0.95, 0.25, 0.25, 0.2) : new paper.Color(0.6, 0.62, 0.64, 0.18);
+    hi.label.fillColor = col(affordable ? '#ff7a7a' : '#b9bdc2');
     hi.g.visible = true;
     hi.g.bringToFront();
     hi.ring.bounds = new paper.Rectangle(d.pos.x - d.radius, d.pos.y - d.radius, d.radius * 2, d.radius * 2);
-    hi.label.content = `🗑 ${d.cost} €`;
+    hi.label.content = affordable ? `🗑 ${d.cost} €` : `🗑 ${d.cost} € (zu teuer)`;
     hi.label.position = new paper.Point(d.pos.x, d.pos.y - d.radius - 10);
   }
 
