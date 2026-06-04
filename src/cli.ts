@@ -44,18 +44,18 @@ function autoPlay(g: Game): void {
   const e = g.eco;
   e.setBeerPrice(5);
 
-  // Bootstrap from an empty garden: a first table + bench and a bartender are
+  // Bootstrap from an empty garden: a first table + bench and a Servicekraft are
   // needed before beer is worth ordering.
   if (g.seating.units.length === 0) { placeTable(g); return; }
   if (g.benchBuyable() && e.canAfford(e.benchCost())) { placeBench(g); return; }
-  if (e.bartenders < 1 && e.canAfford(e.bartenderHireCost())) { g.hireBartender(); return; }
+  if (e.service < 1 && e.canAfford(e.serviceHireCost())) { g.hireService(); return; }
 
-  const canSell = g.seating.seatCount > 0 && e.bartenders > 0;
+  const canSell = g.seating.seatCount > 0 && e.service > 0;
   if (canSell && !g.beerOrderPending() && e.beer.current < 40 && e.money > e.restockCost() + 8) g.orderBeer();
   if (e.toilet.current > e.toilet.capacity * 0.6 && e.money > e.klowagenCost() + 8 && !g.kloPending()) g.callKlowagen();
 
   // Grow once there's a cushion.
-  if (e.bartenders < 2 && e.money > e.bartenderHireCost() + 60) g.hireBartender();
+  if (e.service < 2 && e.money > e.serviceHireCost() + 60) g.hireService();
   if (g.litter.count > 4 && e.cleaners < 2 && e.money > e.cleanerHireCost() + 40) g.hireCleaner();
   if (g.seating.seatCount < 24 && g.tableBuyable() && e.money > e.tableCost() + 90) placeTable(g);
   if (g.dogs.length >= 4 && g.dogCatcherAvailable() && e.money > e.dogCatcherCost() + 20) g.callDogCatcher();

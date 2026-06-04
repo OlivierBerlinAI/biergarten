@@ -10,13 +10,13 @@
 import { BAR } from '../config.js';
 import { dist, type Vec } from './vec.js';
 import type { Person } from './entities/person.js';
-import type { Bartender } from './entities/bartender.js';
+import type { ServiceStaff } from './entities/service.js';
 
 export interface Tap {
   /** Guests waiting at this tap, head of the list at the counter. */
   queue: Person[];
-  /** Assigned a bartender for today (set by assign each morning). */
-  attendant: Bartender | null;
+  /** The Servicekraft posted to this tap right now (null = unstaffed). */
+  attendant: ServiceStaff | null;
 }
 
 export interface Ausschank {
@@ -86,52 +86,14 @@ export class Bar {
     return true;
   }
 
-  // --- daily bartender assignment ------------------------------------------
+  // --- staffing -------------------------------------------------------------
 
-  private allTaps(): Tap[] {
-    return this.list.flatMap((a) => a.taps);
-  }
-
-  /** Every tap as a {building, index} reference, in building order. */
-  private allTapRefs(): TapRef[] {
-    const refs: TapRef[] = [];
-    for (const a of this.list) for (let i = 0; i < a.taps.length; i++) refs.push({ building: a, index: i });
-    return refs;
-  }
-
-  /** Clear all attendants (start of day, before a fresh assignment). */
+  /** Clear all attendants (Game re-posts the Servicekräfte via allocateService). */
   clearAttendants(): void {
-    for (const t of this.allTaps()) t.attendant = null;
-  }
-
-  /**
-   * Pick n taps at random to staff today (one bartender each). Returns the
-   * chosen tap references so the caller can spawn a bartender at each and set
-   * tap.attendant. Does not itself set attendants.
-   */
-  pickStaffedTaps(n: number): TapRef[] {
-    const refs = this.allTapRefs();
-    for (let i = refs.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [refs[i], refs[j]] = [refs[j]!, refs[i]!];
-    }
-    return refs.slice(0, Math.max(0, Math.min(n, refs.length)));
-  }
-
-  /** First tap reference that currently has no attendant, or null. */
-  firstUnstaffedTap(): TapRef | null {
-    for (const a of this.list) {
-      for (let i = 0; i < a.taps.length; i++) if (a.taps[i]!.attendant === null) return { building: a, index: i };
-    }
-    return null;
+    for (const a of this.list) for (const t of a.taps) t.attendant = null;
   }
 
   // --- guest queueing ------------------------------------------------------
-
-  /** True if any tap has a bartender assigned (so it's worth queueing). */
-  hasService(): boolean {
-    return this.allTaps().some((t) => t.attendant !== null);
-  }
 
   /** Assign p to the nearest building's shortest staffed queue. False if none. */
   join(p: Person): boolean {

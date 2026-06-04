@@ -3,11 +3,11 @@
 // so it runs headlessly (tests, CLI) and is driven by command methods.
 
 import { rand, type Vec } from './vec.js';
-import { ARRIVALS, BAR, CLOCK, DELIVERY, DJ, DOGCATCHER, ECONOMY, MAX_DOGS, MAX_PEOPLE, PLACES, START, STRAY_DOG, WC, WORLD } from '../config.js';
+import { ARRIVALS, BAR, CLOCK, DELIVERY, DJ, DOGCATCHER, ECONOMY, GUEST, MAX_DOGS, MAX_PEOPLE, PLACES, START, STRAY_DOG, WC, WORLD } from '../config.js';
 import { GameState, type Outcome } from './economy.js';
 import { Clock } from './clock.js';
 import { Seating } from './seating.js';
-import { Stands, type Stand } from './stands.js';
+import { Stands } from './stands.js';
 import { Toilets, type WcHouse } from './toilets.js';
 import { Tanks } from './tanks.js';
 import { Deco } from './deco.js';
@@ -16,9 +16,8 @@ import { Paths } from './paths.js';
 import { LitterField } from './litter.js';
 import { Bar, type Ausschank } from './bar.js';
 import { Person } from './entities/person.js';
-import { Bartender } from './entities/bartender.js';
+import { ServiceStaff, type ServiceAssignment } from './entities/service.js';
 import { Gardener } from './entities/gardener.js';
-import { PretzelSeller } from './entities/pretzelseller.js';
 import { DjStaff } from './entities/djstaff.js';
 import { Dog } from './entities/dog.js';
 import { Cleaner } from './entities/cleaner.js';
@@ -75,9 +74,8 @@ export class Game implements World {
   readonly bar = new Bar();
 
   readonly people: Person[] = [];
-  readonly bartenders: Bartender[] = [];
+  readonly service: ServiceStaff[] = [];
   readonly gardeners: Gardener[] = [];
-  readonly sellers: PretzelSeller[] = [];
   readonly djStaff: DjStaff[] = [];
   readonly dogs: Dog[] = [];
   readonly cleaners: Cleaner[] = [];
@@ -95,6 +93,7 @@ export class Game implements World {
   arrivalsTotal = 0;
 
   private nextId = 1;
+  private allocTimer = 0; // frames until the next service-staff reallocation
   private dogSpawnTimer = rand(STRAY_DOG.spawnIntervalMin, STRAY_DOG.spawnIntervalMax);
   private sfx: SfxName[] = [];
   private readonly events = new EventLog();
@@ -165,16 +164,14 @@ export class Game implements World {
     this.paths.list.length = 0;
     this.people.length = 0;
     // No staff to begin with either — hire them once you've built something.
-    this.eco.bartenders = 0;
+    this.eco.service = 0;
     this.eco.cleaners = 0;
     this.eco.gardeners = 0;
-    this.bartenders.length = 0;
+    this.service.length = 0;
     this.cleaners.length = 0;
     this.gardeners.length = 0;
     this.syncTankCapacity(); // capacities → 0
-    this.eco.sellers = 0;
     this.eco.djWorkers = 0;
-    this.sellers.length = 0;
     this.djStaff.length = 0;
     this.eco.beer.current = 0; // no tank, no stock
     this.eco.reputation = START.blankReputation; // so guests trickle in slowly
@@ -207,7 +204,7 @@ export class Game implements World {
     if (this.eco.wagePayments !== wagesBefore && this.eco.lastWage > 0) {
       this.log(
         'staff',
-        `Stundenlohn (${this.eco.bartenders}×Theke, ${this.eco.cleaners}×Putz, ${this.eco.gardeners}×Gärtner, ${this.eco.sellers}×Brezn, ${this.eco.djWorkers}×DJ)`,
+        `Stundenlohn (${this.eco.service}×Service, ${this.eco.cleaners}×Putz, ${this.eco.gardeners}×Gärtner, ${this.eco.djWorkers}×DJ)`,
         -this.eco.lastWage,
       );
     }
@@ -241,15 +238,12 @@ export class Game implements World {
     for (let i = this.cleaners.length - 1; i >= 0; i--) {
       if (!this.cleaners[i]!.tick(this)) this.cleaners.splice(i, 1);
     }
-    for (let i = this.bartenders.length - 1; i >= 0; i--) {
-      if (!this.bartenders[i]!.tick(this)) this.bartenders.splice(i, 1);
+    for (let i = this.service.length - 1; i >= 0; i--) {
+      if (!this.service[i]!.tick(this)) this.service.splice(i, 1);
     }
+    if (this.onShift && --this.allocTimer <= 0) { this.allocTimer = 30; this.allocateService(); }
     for (let i = this.gardeners.length - 1; i >= 0; i--) {
       if (!this.gardeners[i]!.tick(this)) this.gardeners.splice(i, 1);
-    }
-    for (let i = this.sellers.length - 1; i >= 0; i--) {
-      const s = this.sellers[i]!;
-      if (!s.tick(this)) { if (s.stand.seller === s) s.stand.seller = null; this.sellers.splice(i, 1); }
     }
     for (let i = this.djStaff.length - 1; i >= 0; i--) {
       if (!this.djStaff[i]!.tick(this)) this.djStaff.splice(i, 1);
@@ -355,25 +349,77 @@ export class Game implements World {
     return true;
   }
 
-  /** Spawn/retire pretzel sellers so each stand has one, up to the hired count. */
-  private reconcileSellers(): void {
+  /**
+   * Dynamically post each Servicekraft to whatever's most needed right now: a
+   * tap with a queue / thirsty crowd, or a stocked stand with hungry guests.
+   * Recomputed periodically (and on any structural change), so workers float
+   * between the bar and the pretzel stands as demand shifts through the day.
+   */
+  private allocateService(): void {
     if (!this.onShift) return;
-    for (const s of this.sellers) {
-      if (!s.goingHome && !this.stands.list.includes(s.stand)) {
-        if (s.stand.seller === s) s.stand.seller = null;
-        s.sendHome();
+    // Drop all current posts; we rebuild them from the chosen assignments below.
+    for (const a of this.bar.list) for (const t of a.taps) t.attendant = null;
+    for (const s of this.stands.list) s.seller = null;
+
+    const workers = this.service.filter((s) => !s.goingHome);
+    if (workers.length === 0) return;
+
+    // Demand signals: how many guests want beer vs. a pretzel right now.
+    const thirsty = this.people.filter((p) => p.thirst >= GUEST.thirstWantBeer).length;
+    const canPretzel = this.eco.canSellPretzel();
+    const hungry = canPretzel ? this.people.filter((p) => p.hunger >= GUEST.hungerWantPretzel).length : 0;
+
+    interface Station { id: string; need: number; make: () => ServiceAssignment }
+    const stations: Station[] = [];
+    for (const a of this.bar.list) {
+      for (let i = 0; i < a.taps.length; i++) {
+        const q = a.taps[i]!.queue.length;
+        const index = i;
+        stations.push({ id: `tap-${a.id}-${i}`, need: 2 + q * 6 + thirsty * 0.5, make: () => ({ kind: 'tap', building: a, index }) });
       }
     }
-    const active = (): PretzelSeller[] => this.sellers.filter((s) => !s.goingHome);
-    for (const stand of this.stands.list) {
-      if (active().length >= this.eco.sellers) break;
-      if (!stand.seller || stand.seller.goingHome) this.spawnSeller(stand);
+    if (canPretzel) {
+      for (const st of this.stands.list) {
+        stations.push({ id: `stand-${st.id}`, need: st.queue.length * 6 + hungry * 0.7, make: () => ({ kind: 'stand', stand: st }) });
+      }
     }
-    while (active().length > this.eco.sellers) {
-      const extra = active().pop()!;
-      if (extra.stand.seller === extra) extra.stand.seller = null;
-      extra.sendHome();
+    // Highest-need posts first; stable tie-break keeps things from flapping.
+    stations.sort((x, y) => y.need - x.need || (x.id < y.id ? -1 : 1));
+    const chosen = stations.slice(0, workers.length);
+    const chosenById = new Map(chosen.map((s) => [s.id, s]));
+
+    // Keep workers already on a chosen post (no needless walking); collect the rest.
+    const taken = new Set<string>();
+    const free: ServiceStaff[] = [];
+    for (const w of workers) {
+      const id = this.assignmentId(w.assignment);
+      if (id && chosenById.has(id) && !taken.has(id)) {
+        taken.add(id);
+        this.applyAssignment(w, chosenById.get(id)!.make());
+      } else {
+        free.push(w);
+      }
     }
+    // Fill the still-uncovered chosen posts with the free workers; the rest loaf.
+    let fi = 0;
+    for (const s of chosen) {
+      if (taken.has(s.id)) continue;
+      const w = free[fi++];
+      if (!w) break;
+      this.applyAssignment(w, s.make());
+    }
+    for (; fi < free.length; fi++) free[fi]!.assignTo(null);
+  }
+
+  private applyAssignment(w: ServiceStaff, a: ServiceAssignment): void {
+    w.assignTo(a);
+    if (a.kind === 'tap') a.building.taps[a.index]!.attendant = w;
+    else a.stand.seller = w;
+  }
+
+  private assignmentId(a: ServiceAssignment | null): string | null {
+    if (!a) return null;
+    return a.kind === 'tap' ? `tap-${a.building.id}-${a.index}` : `stand-${a.stand.id}`;
   }
 
   /** Spawn/retire DJs so each booth has one, up to the hired count. */
@@ -488,28 +534,24 @@ export class Game implements World {
       ? { x: PLACES.bar.x - 120, y: PLACES.bar.y + 72 }
       : { x: PLACES.toilet.x - 95, y: PLACES.toilet.y + 28 };
   }
-  hireBartender(): boolean {
-    const cost = this.eco.bartenderHireCost();
-    if (!this.eco.hireBartender()) return false;
-    this.log('staff', `Schankkraft eingestellt → ${this.eco.bartenders}`, -cost);
-    // If hired mid-shift, put them on a free tap, else let them loaf about.
+  hireService(): boolean {
+    const cost = this.eco.serviceHireCost();
+    if (!this.eco.hireService()) return false;
+    this.log('staff', `Servicekraft eingestellt → ${this.eco.service}`, -cost);
     if (this.onShift) {
-      const ref = this.bar.firstUnstaffedTap();
-      if (ref) this.spawnBartender(ref.building, ref.index);
-      else this.spawnIdleBartender();
+      this.service.push(new ServiceStaff(this.nextId++, this.places.entrance));
+      this.allocateService(); // put them wherever they're needed most
     }
     return true;
   }
-  fireBartender(): boolean {
-    if (!this.eco.fireBartender()) return false;
-    this.log('staff', `Schankkraft entlassen → ${this.eco.bartenders}`);
-    // Send a loafing bartender home first; only pull one off a tap if we must.
+  fireService(): boolean {
+    if (!this.eco.fireService()) return false;
+    this.log('staff', `Servicekraft entlassen → ${this.eco.service}`);
     if (this.onShift) {
-      const b = this.bartenders.find((x) => x.isIdle) ?? this.bartenders.find((x) => !x.goingHome);
-      if (b) {
-        if (b.building) b.building.taps[b.tapIndex]!.attendant = null;
-        b.sendHome();
-      }
+      // Send a loafing worker home first; only pull one off a post if we must.
+      const s = this.service.find((x) => x.isIdle && !x.goingHome) ?? this.service.find((x) => !x.goingHome);
+      if (s) s.sendHome();
+      this.allocateService(); // re-cover any post that just opened up
     }
     return true;
   }
@@ -544,19 +586,6 @@ export class Game implements World {
       if (gr) gr.sendHome();
     }
     this.log('staff', `Gärtner entlassen → ${this.eco.gardeners}`);
-    return true;
-  }
-  hireSeller(): boolean {
-    const cost = this.eco.sellerHireCost();
-    if (!this.eco.hireSeller()) return false;
-    this.log('staff', `Brezelverkäufer eingestellt → ${this.eco.sellers}`, -cost);
-    this.reconcileSellers();
-    return true;
-  }
-  fireSeller(): boolean {
-    if (!this.eco.fireSeller()) return false;
-    this.log('staff', `Brezelverkäufer entlassen → ${this.eco.sellers}`);
-    this.reconcileSellers();
     return true;
   }
   hireDj(): boolean {
@@ -693,12 +722,11 @@ export class Game implements World {
     } else if (kind === 'pretzel') {
       this.eco.spend(this.eco.pretzelStandCost());
       this.stands.add(point);
-      this.reconcileSellers(); // a hired-but-spare seller takes the new stand
+      if (this.onShift) this.allocateService(); // a spare Servicekraft can take it
     } else if (kind === 'ausschank') {
       this.eco.spend(this.eco.ausschankCost());
-      const a = this.bar.add(point);
-      // A loafing bartender, if any, takes the new tap.
-      if (this.onShift) this.staffTapWithIdle(a, 0);
+      this.bar.add(point);
+      if (this.onShift) this.allocateService(); // staff the new tap if there's a spare
     } else if (kind === 'wc') {
       this.eco.spend(this.eco.wcHouseCost());
       this.toilets.add(point);
@@ -782,13 +810,12 @@ export class Game implements World {
       case 'beertank': case 'wastetank': this.tanks.remove(d.id); this.syncTankCapacity(); break;
       case 'pretzel': {
         this.stands.remove(d.id);
-        this.reconcileSellers(); // free its seller, restaff another stand if bare
+        if (this.onShift) this.allocateService(); // free its worker, restaff elsewhere
         break;
       }
       case 'ausschank': {
-        const bar = this.bar.list.find((a) => a.id === d.id);
-        if (bar) for (const tap of bar.taps) tap.attendant?.unassign();
         this.bar.remove(d.id);
+        if (this.onShift) this.allocateService(); // free its worker, restaff elsewhere
         break;
       }
       case 'wc': this.toilets.remove(d.id); break;
@@ -815,10 +842,8 @@ export class Game implements World {
     if (!this.bar.canAddTap(a) || !this.eco.canAfford(this.eco.tapCost())) return false;
     const cost = this.eco.tapCost();
     if (!this.eco.spend(cost)) return false;
-    const index = a.taps.length;
     this.bar.addTap(a);
-    // A loafing bartender, if any, takes the fresh tap.
-    if (this.onShift) this.staffTapWithIdle(a, index);
+    if (this.onShift) this.allocateService(); // a spare Servicekraft can take the fresh tap
     this.play('cheers');
     this.log('money', `Zapfhahn hinzugefügt (Bar #${a.id})`, -cost);
     return true;
@@ -885,56 +910,29 @@ export class Game implements World {
     }
   }
 
-  /** Morning: bring the staff in — cleaners, gardeners, pretzel sellers, DJs,
-   *  and bartenders assigned to taps (surplus loafs about). */
+  /** Morning: bring the staff in — cleaners, gardeners, DJs, and the
+   *  Servicekräfte (allocated to taps/stands by need once they're in). */
   private startShift(): void {
     for (let i = 0; i < this.eco.cleaners; i++) this.cleaners.push(new Cleaner(this.nextId++, this.places.entrance));
     for (let i = 0; i < this.eco.gardeners; i++) this.gardeners.push(new Gardener(this.nextId++, this.places.entrance));
-    this.reconcileSellers();
+    for (let i = 0; i < this.eco.service; i++) this.service.push(new ServiceStaff(this.nextId++, this.places.entrance));
     this.reconcileDjs();
     this.bar.clearAttendants();
-    const taps = this.bar.pickStaffedTaps(this.eco.bartenders);
-    for (const ref of taps) this.spawnBartender(ref.building, ref.index);
-    for (let i = taps.length; i < this.eco.bartenders; i++) this.spawnIdleBartender();
+    this.allocateService();
   }
 
   /** Evening: all staff pack up and head home; counters go unstaffed. */
   private endShift(): void {
     this.bar.clearAttendants();
-    for (const b of this.bartenders) b.sendHome();
+    for (const s of this.service) s.sendHome();
     for (const c of this.cleaners) c.sendHome(this);
     for (const gr of this.gardeners) gr.sendHome();
-    for (const s of this.sellers) { s.stand.seller = null; s.sendHome(); }
+    for (const st of this.stands.list) st.seller = null;
     for (const d of this.djStaff) d.sendHome();
-  }
-
-  private spawnSeller(stand: Stand): void {
-    const s = new PretzelSeller(this.nextId++, this.places.entrance, stand);
-    stand.seller = s;
-    this.sellers.push(s);
   }
 
   private spawnDjStaff(booth: DjObj): void {
     this.djStaff.push(new DjStaff(this.nextId++, this.places.entrance, booth));
-  }
-
-  private spawnBartender(building: Ausschank, index: number): void {
-    const b = new Bartender(this.nextId++, this.places.entrance, building, index);
-    building.taps[index]!.attendant = b;
-    this.bartenders.push(b);
-  }
-
-  private spawnIdleBartender(): void {
-    this.bartenders.push(new Bartender(this.nextId++, this.places.entrance, null, -1));
-  }
-
-  /** Hand a freshly opened tap to a loafing bartender, if there is one. */
-  private staffTapWithIdle(building: Ausschank, index: number): void {
-    const idle = this.bartenders.find((b) => b.isIdle);
-    if (idle) {
-      building.taps[index]!.attendant = idle;
-      idle.assignTap(building, index);
-    }
   }
 
   /**

@@ -5,7 +5,7 @@
 
 import { dist, type Vec } from './vec.js';
 import type { Person } from './entities/person.js';
-import type { PretzelSeller } from './entities/pretzelseller.js';
+import type { ServiceStaff } from './entities/service.js';
 
 /** Rough radius of a stand, for placement/overlap checks. */
 export const STAND_FOOTPRINT = 38;
@@ -15,8 +15,8 @@ export interface Stand {
   pos: Vec;
   /** Guests waiting to be served, head of the list at the counter. */
   queue: Person[];
-  /** The seller working this stand (null = unstaffed). */
-  seller: PretzelSeller | null;
+  /** The Servicekraft working this stand right now (null = unstaffed). */
+  seller: ServiceStaff | null;
 }
 
 const FRONT_OFFSET_Y = 46;

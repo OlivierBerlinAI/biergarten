@@ -92,20 +92,20 @@ export const START = {
   reputation: 60, // long-term satisfaction (0..100)
   blankReputation: 15, // a "blank field" start opens with a low reputation
   beer: 25, // litres in the tank at the start
-  bartenders: 1, // start with one bartender already on shift
+  service: 1, // start with one Servicekraft already on shift
   cleaners: 1, // ...and one cleaner
 } as const;
 
 /** Staff: one-time hire cost and recurring wage paid every wage interval. */
 export const STAFF = {
-  bartenderHire: 20,
-  bartenderWage: 4, // per wage interval
+  /** Servicekraft: one merged role that pours beer AND sells pretzels, doing
+   *  whatever's most needed right now (Game allocates them dynamically). */
+  serviceHire: 20,
+  serviceWage: 4, // per wage interval
   cleanerHire: 15,
   cleanerWage: 3, // per wage interval
   gardenerHire: 18,
   gardenerWage: 3, // per wage interval
-  sellerHire: 10, // one-time hire (via the Personal panel)
-  sellerWage: 4, // per wage interval
   djHire: 20, // one-time hire (via the Personal panel)
   djWage: 4, // per wage interval
   /** Frames between wage payments — once per in-game hour (20s × 60fps). */

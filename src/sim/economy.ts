@@ -17,11 +17,10 @@ export class GameState {
   beerPrice: number = ECONOMY.price.start;
   reputation: number = START.reputation; // long-term satisfaction, 0..100
 
-  bartenders: number = START.bartenders;
+  /** Servicekräfte: the merged beer+pretzel staff, allocated to taps/stands by Game. */
+  service: number = START.service;
   cleaners: number = START.cleaners;
   gardeners = 0;
-  /** Hired pretzel sellers and DJs (assigned one per stand / booth by Game). */
-  sellers = 0;
   djWorkers = 0;
 
   /** Start with a small stock of beer so the garden can sell from the off.
@@ -274,16 +273,16 @@ export class GameState {
 
   // --- staff ---------------------------------------------------------------
 
-  bartenderHireCost(): number {
-    return STAFF.bartenderHire;
+  serviceHireCost(): number {
+    return STAFF.serviceHire;
   }
 
   cleanerHireCost(): number {
     return STAFF.cleanerHire;
   }
 
-  bartenderWage(): number {
-    return STAFF.bartenderWage;
+  serviceWage(): number {
+    return STAFF.serviceWage;
   }
 
   cleanerWage(): number {
@@ -298,32 +297,12 @@ export class GameState {
     return STAFF.gardenerWage;
   }
 
-  sellerHireCost(): number {
-    return STAFF.sellerHire;
-  }
-
-  sellerWage(): number {
-    return STAFF.sellerWage;
-  }
-
   djHireCost(): number {
     return STAFF.djHire;
   }
 
   djWage(): number {
     return STAFF.djWage;
-  }
-
-  hireSeller(): boolean {
-    if (!this.spend(STAFF.sellerHire)) return false;
-    this.sellers += 1;
-    return true;
-  }
-
-  fireSeller(): boolean {
-    if (this.sellers <= 0) return false;
-    this.sellers -= 1;
-    return true;
   }
 
   hireDj(): boolean {
@@ -350,15 +329,15 @@ export class GameState {
     return true;
   }
 
-  hireBartender(): boolean {
-    if (!this.spend(STAFF.bartenderHire)) return false;
-    this.bartenders += 1;
+  hireService(): boolean {
+    if (!this.spend(STAFF.serviceHire)) return false;
+    this.service += 1;
     return true;
   }
 
-  fireBartender(): boolean {
-    if (this.bartenders <= 0) return false;
-    this.bartenders -= 1;
+  fireService(): boolean {
+    if (this.service <= 0) return false;
+    this.service -= 1;
     return true;
   }
 
@@ -380,10 +359,9 @@ export class GameState {
     if (this.wageTimer <= 0) {
       this.wageTimer = STAFF.wageIntervalFrames;
       this.lastWage =
-        this.bartenders * STAFF.bartenderWage +
+        this.service * STAFF.serviceWage +
         this.cleaners * STAFF.cleanerWage +
         this.gardeners * STAFF.gardenerWage +
-        this.sellers * STAFF.sellerWage +
         this.djWorkers * STAFF.djWage;
       this.money -= this.lastWage;
       this.wagePayments += 1;

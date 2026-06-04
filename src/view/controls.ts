@@ -112,8 +112,6 @@ export class Controls {
 
     this.onClick('btn-hire-gardener', () => { sound.init(); game.hireGardener(); });
     this.onClick('btn-fire-gardener', () => { sound.init(); game.fireGardener(); });
-    this.onClick('btn-hire-seller', () => { sound.init(); game.hireSeller(); });
-    this.onClick('btn-fire-seller', () => { sound.init(); game.fireSeller(); });
     this.onClick('btn-hire-dj', () => { sound.init(); game.hireDj(); });
     this.onClick('btn-fire-dj', () => { sound.init(); game.fireDj(); });
 
@@ -125,8 +123,8 @@ export class Controls {
       if (autoBtn) autoBtn.textContent = `🔁 Auto-Lieferung: ${on ? 'an' : 'aus'}`;
     });
 
-    this.onClick('btn-hire-bar', () => { sound.init(); game.hireBartender(); });
-    this.onClick('btn-fire-bar', () => { sound.init(); game.fireBartender(); });
+    this.onClick('btn-hire-service', () => { sound.init(); game.hireService(); });
+    this.onClick('btn-fire-service', () => { sound.init(); game.fireService(); });
     this.onClick('btn-hire-clean', () => { sound.init(); game.hireCleaner(); });
     this.onClick('btn-fire-clean', () => { sound.init(); game.fireCleaner(); });
     this.onClick('btn-dogcatcher', () => { sound.init(); game.callDogCatcher(); });
@@ -289,10 +287,10 @@ export class Controls {
       this.disabled('btn-pretzel-order', pretzelOrder <= 0 || !eco.canAfford(pretzelCost));
     }
 
-    this.text('cnt-bar', String(eco.bartenders));
-    this.text('cost-bar', `einmalig ${eco.bartenderHireCost()} € · Lohn ${eco.bartenderWage()} €`);
-    this.disabled('btn-hire-bar', !eco.canAfford(eco.bartenderHireCost()));
-    this.disabled('btn-fire-bar', eco.bartenders <= 0);
+    this.text('cnt-service', String(eco.service));
+    this.text('cost-service', `einmalig ${eco.serviceHireCost()} € · Lohn ${eco.serviceWage()} €`);
+    this.disabled('btn-hire-service', !eco.canAfford(eco.serviceHireCost()));
+    this.disabled('btn-fire-service', eco.service <= 0);
 
     this.text('cnt-clean', String(eco.cleaners));
     this.text('cost-clean', `einmalig ${eco.cleanerHireCost()} € · Lohn ${eco.cleanerWage()} €`);
@@ -304,10 +302,6 @@ export class Controls {
     this.disabled('btn-hire-gardener', !eco.canAfford(eco.gardenerHireCost()));
     this.disabled('btn-fire-gardener', eco.gardeners <= 0);
 
-    this.text('cnt-seller', String(eco.sellers));
-    this.text('cost-seller', `einmalig ${eco.sellerHireCost()} € · Lohn ${eco.sellerWage()} €`);
-    this.disabled('btn-hire-seller', !eco.canAfford(eco.sellerHireCost()));
-    this.disabled('btn-fire-seller', eco.sellers <= 0);
 
     this.text('cnt-dj-staff', String(eco.djWorkers));
     this.text('cost-dj-staff', `einmalig ${eco.djHireCost()} € · Lohn ${eco.djWage()} €`);

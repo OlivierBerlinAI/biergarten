@@ -18,7 +18,7 @@ import type { Dogcatcher } from '../sim/entities/dogcatcher.js';
 import type { Truck } from '../sim/entities/truck.js';
 import type { Unit } from '../sim/seating.js';
 import type { Ausschank } from '../sim/bar.js';
-import type { Bartender } from '../sim/entities/bartender.js';
+import type { ServiceStaff } from '../sim/entities/service.js';
 import type { Litter } from '../sim/litter.js';
 
 interface PersonSprite { g: paper.Group; body: paper.Path; head: paper.Path; skin: paper.Color; mug: paper.Group; glass: paper.Path; pretzel: paper.Group; }
@@ -50,7 +50,7 @@ export class Renderer {
   private readonly units = new Map<number, { g: paper.Group; benches: number }>();
   private readonly pathSprites = new Map<number, paper.Group>();
   private readonly standSprites = new Map<number, { g: paper.Group; gauge: TapGauge }>();
-  private readonly sellers = new Map<number, SimpleSprite>();
+  private readonly service = new Map<number, SimpleSprite>();
   private readonly djStaffSprites = new Map<number, SimpleSprite>();
   private readonly bars = new Map<number, BarSprite>();
   private readonly wcs = new Map<number, WcSprite>();
@@ -58,7 +58,6 @@ export class Renderer {
   private readonly decoSprites = new Map<number, DecoSprite>();
   private readonly djSprites = new Map<number, DjSprite>();
   private hoveredDj: number | null = null;
-  private readonly bartenders = new Map<number, SimpleSprite>();
   private readonly gardeners = new Map<number, SimpleSprite>();
   private readonly towels = new Map<string, paper.Group>();
   private readonly litterSprites = new Map<number, paper.Group>();
@@ -90,9 +89,8 @@ export class Renderer {
     this.syncTowels(game);
     this.syncLitter(game);
     this.syncPeople(game);
-    this.syncBartenders(game);
+    this.syncService(game);
     this.syncGardeners(game);
-    this.syncSellers(game);
     this.syncDjStaff(game);
     this.syncDogs(game);
     this.syncCleaners(game);
@@ -510,21 +508,24 @@ export class Renderer {
     return { g, body };
   }
 
-  // --- bartenders -----------------------------------------------------------
+  // --- Servicekräfte (merged beer + pretzel staff) --------------------------
 
-  private syncBartenders(game: Game): void {
+  private syncService(game: Game): void {
     const live = new Set<number>();
-    for (const b of game.bartenders) {
-      live.add(b.id);
-      let s = this.bartenders.get(b.id);
-      if (!s) { s = this.buildBartender(b); this.bartenders.set(b.id, s); }
-      s.g.position = new paper.Point(b.pos.x, b.pos.y);
-      if (b.moving) s.body.position = new paper.Point(0, 6 + Math.sin(b.bob) * 1.5);
+    for (const s of game.service) {
+      live.add(s.id);
+      let sp = this.service.get(s.id);
+      if (!sp) { sp = this.buildService(s); this.service.set(s.id, sp); }
+      sp.g.position = new paper.Point(s.pos.x, s.pos.y);
+      // Walking: bob up/down. At a post: sway gently side to side.
+      sp.body.position = s.moving
+        ? new paper.Point(0, 6 + Math.sin(s.bob) * 1.5)
+        : new paper.Point(Math.sin(s.bob) * 2, 6);
     }
-    for (const [id, s] of this.bartenders) if (!live.has(id)) { s.g.remove(); this.bartenders.delete(id); }
+    for (const [id, sp] of this.service) if (!live.has(id)) { sp.g.remove(); this.service.delete(id); }
   }
 
-  private buildBartender(b: Bartender): SimpleSprite {
+  private buildService(s: ServiceStaff): SimpleSprite {
     const g = new paper.Group();
     g.applyMatrix = false;
     this.entitiesG.addChild(g);
@@ -542,7 +543,7 @@ export class Renderer {
     const cap = new paper.Path.Circle(new paper.Point(0, -17), 6);
     cap.fillColor = col('#ffd34d');
     g.addChildren([shadow, body, apron, head, brim, cap]);
-    g.position = new paper.Point(b.pos.x, b.pos.y);
+    g.position = new paper.Point(s.pos.x, s.pos.y);
     return { g, body };
   }
 
@@ -702,22 +703,7 @@ export class Renderer {
     return { g, gauge };
   }
 
-  // --- pretzel sellers + DJs (staff) ----------------------------------------
-
-  private syncSellers(game: Game): void {
-    const live = new Set<number>();
-    for (const seller of game.sellers) {
-      live.add(seller.id);
-      let s = this.sellers.get(seller.id);
-      if (!s) { s = this.buildStaffFigure(seller.pos, '#caa05a', '#7a5a20', false, '#e8821f'); this.sellers.set(seller.id, s); }
-      s.g.position = new paper.Point(seller.pos.x, seller.pos.y);
-      // Walking: bob up/down. Serving: sway gently side to side.
-      s.body.position = seller.moving
-        ? new paper.Point(0, 6 + Math.sin(seller.bob) * 1.5)
-        : new paper.Point(Math.sin(seller.bob) * 2, 6);
-    }
-    for (const [id, s] of this.sellers) if (!live.has(id)) { s.g.remove(); this.sellers.delete(id); }
-  }
+  // --- DJ staff -------------------------------------------------------------
 
   private syncDjStaff(game: Game): void {
     const live = new Set<number>();

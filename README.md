@@ -31,10 +31,12 @@ Du betreibst den Garten:
   steuert die Gäste-Zahl: **pro Stunde kommen ≈ Ruf/10 Gäste** (bei 50 % also 5),
   **±30 %** und zu **zufälligen Zeiten** innerhalb der Stunde.
 
-- **Personal**: **Schankkräfte** bedienen am Ausschank (zu wenige → Schlange &
-  Frust). **Putzkräfte** sind kleine Arbeiter mit **roter Mütze**, die durch den
-  Garten laufen, **Unrat** aufsammeln und das **Klo schrubben**. Beide kosten
-  Einstellung + laufenden Lohn pro Schicht.
+- **Personal**: **Servicekräfte** sind die gelben Bedienungen — eine zusammen-
+  gelegte Rolle, die **Bier zapft *und* Brezn verkauft** und sich automatisch
+  dahin stellt, wo gerade am meisten los ist (Theke mit Schlange / Brezelstand
+  mit hungrigen Gästen); zu wenige → Schlange & Frust. **Putzkräfte** sind kleine
+  Arbeiter mit **roter Mütze**, die durch den Garten laufen, **Unrat** aufsammeln
+  und das **Klo schrubben**. Beide kosten Einstellung + laufenden Lohn pro Schicht.
 - **Klo**: Der **Klo-Tank** füllt sich 1:1 mit dem Bierverkauf und wird **nur vom
   Klowagen** geleert; mit **„Klo-Tank ausbauen"** verdoppelst du sein Volumen
   (200 €, dann 400 €). Die **Verschmutzung** steigt pro Nutzung und sinkt **nur

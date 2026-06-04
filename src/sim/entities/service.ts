@@ -1,28 +1,33 @@
-// A bartender (Schankkraft). Assigned to a tap for the day they walk in, stand
-// at the counter pouring for the queue, and head home in the evening. A bartender
-// with no free tap to work just loafs about — petting dogs, admiring the flowers,
-// checking the beer tank or wandering — until a tap frees up. Everyone needs the
-// loo now and then. Pure state machine.
+// A Servicekraft: one merged front-of-house worker that can pour beer at a tap
+// OR sell pretzels at a stand, switching to whatever Game decides is most needed
+// right now (see Game.allocateService). With no post to work they loaf about —
+// petting dogs, admiring the flowers, checking the beer tank — and everyone needs
+// the loo now and then. Pure state machine; merges the old Bartender + Seller.
 
 import { stepToward, rand, clamp, dist, type Vec } from '../vec.js';
 import { STAFF, TOILET, PATH } from '../../config.js';
 import type { World } from '../world.js';
 import type { Ausschank } from '../bar.js';
+import type { Stand } from '../stands.js';
 import type { Stall } from '../toilets.js';
 import type { Dog } from './dog.js';
 
-export type BartenderState = 'arriving' | 'working' | 'idle' | 'toToilet' | 'inToilet' | 'leaving';
+/** Where a Servicekraft is currently posted (null = idle / loafing). */
+export type ServiceAssignment =
+  | { kind: 'tap'; building: Ausschank; index: number }
+  | { kind: 'stand'; stand: Stand };
 
-export class Bartender {
+export type ServiceState = 'arriving' | 'working' | 'idle' | 'toToilet' | 'inToilet' | 'leaving';
+
+export class ServiceStaff {
   readonly id: number;
   pos: Vec;
   bob: number;
-  /** The tap this bartender works, or null when there's no tap to staff (idle). */
-  building: Ausschank | null;
-  tapIndex: number;
+  /** Current post (tap or stand), or null when there's nothing to staff. */
+  assignment: ServiceAssignment | null = null;
 
-  private state: BartenderState;
-  private readonly speed = rand(1.6, 2.2);
+  private state: ServiceState = 'idle';
+  private readonly speed = rand(1.5, 2.1);
   private _bladder = rand(0, 30);
   private readonly bladderRate = rand(STAFF.bladderRateMin, STAFF.bladderRateMax);
   private toiletDuration = 1;
@@ -33,16 +38,13 @@ export class Bartender {
   private idlePause = 0;
   private pathMult = 1;
 
-  constructor(id: number, entrance: Vec, building: Ausschank | null, tapIndex: number) {
+  constructor(id: number, entrance: Vec) {
     this.id = id;
     this.pos = { x: entrance.x, y: entrance.y };
-    this.building = building;
-    this.tapIndex = tapIndex;
     this.bob = rand(0, Math.PI * 2);
-    this.state = 'arriving';
   }
 
-  /** A tap pours only while its bartender is actually standing at the counter. */
+  /** A post serves only while its worker is actually standing at the counter. */
   get atCounter(): boolean {
     return this.state === 'working';
   }
@@ -55,52 +57,52 @@ export class Bartender {
     return this.state === 'leaving';
   }
 
-  /** Loafing about with no tap (a free tap can be handed to them). */
+  /** Loafing about with no post (Game can hand them one). */
   get isIdle(): boolean {
-    return this.building === null && this.state !== 'leaving';
+    return this.assignment === null && this.state !== 'leaving';
   }
 
-  /** Put an idle bartender onto a freshly opened tap. */
-  assignTap(building: Ausschank, tapIndex: number): void {
-    this.building = building;
-    this.tapIndex = tapIndex;
+  /** (Re)assign to a tap, a stand, or nothing. Walks to the new post. */
+  assignTo(a: ServiceAssignment | null): void {
+    if (this.sameAssignment(a)) return; // already there — don't restart the walk
+    this.assignment = a;
     this.idleTarget = null;
-    if (this.state === 'idle') this.state = 'arriving';
+    this.idleDog = null;
+    this.idlePause = 0;
+    // Mid-toilet / leaving: let that finish; it picks the post back up afterwards.
+    if (this.state === 'leaving' || this.state === 'toToilet' || this.state === 'inToilet') return;
+    this.state = a ? 'arriving' : 'idle';
   }
 
   sendHome(): void {
     if (this.state !== 'leaving') this.state = 'leaving';
   }
 
-  /** Their bar was torn down — become an idle, loafing bartender. */
-  unassign(): void {
-    this.building = null;
-    this.tapIndex = -1;
-    if (this.state !== 'leaving') this.state = 'idle';
-  }
-
   tick(w: World): boolean {
     this.pathMult = w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult;
     switch (this.state) {
       case 'arriving': {
-        if (!this.building) { this.state = 'idle'; break; }
-        if (this.moveTo(w.bar.attendantSpot(this.building, this.tapIndex))) this.state = 'working';
+        const spot = this.workSpot(w);
+        if (!spot) { this.state = 'idle'; break; }
+        if (this.moveTo(spot)) this.state = 'working';
         break;
       }
       case 'working': {
-        this.moveTo(w.bar.attendantSpot(this.building!, this.tapIndex)); // settle onto the spot
+        const spot = this.workSpot(w);
+        if (!spot) { this.state = 'idle'; break; } // post vanished (reassigned/torn down)
+        this.moveTo(spot); // settle onto the spot
         if (this.needsToilet(w)) this.state = 'toToilet';
         break;
       }
       case 'idle': {
+        if (this.assignment) { this.state = 'arriving'; break; }
         if (this.needsToilet(w)) { this.state = 'toToilet'; break; }
         if (this.idlePause > 0) { this.idlePause--; break; }
         if (this.idleDog) {
-          // Chase the dog down, then pet it — it holds still while petted.
           if (this.moveTo(this.idleDog.pos) || dist(this.pos, this.idleDog.pos) < 24) {
             const dur = Math.floor(rand(60, 150));
             this.idleDog.pet(dur);
-            this.idlePause = dur; // the bartender stays to pet it
+            this.idlePause = dur;
             this.idleDog = null;
             this.idleTarget = null;
           }
@@ -114,7 +116,7 @@ export class Bartender {
       case 'toToilet': {
         if (!w.toilets.has(this) && !w.toilets.join(this, this.pos)) {
           this._bladder = 0;
-          this.state = this.building ? 'arriving' : 'idle';
+          this.state = this.assignment ? 'arriving' : 'idle';
           break;
         }
         const atSpot = this.moveTo(w.toilets.positionOf(this));
@@ -134,7 +136,7 @@ export class Bartender {
           this._bladder = 0;
           w.toilets.leave(this);
           this.toiletStall = null;
-          this.state = this.building ? 'arriving' : 'idle';
+          this.state = this.assignment ? 'arriving' : 'idle';
         }
         break;
       }
@@ -146,6 +148,20 @@ export class Bartender {
     }
     this.bob += 0.2;
     return true;
+  }
+
+  private workSpot(w: World): Vec | null {
+    const a = this.assignment;
+    if (!a) return null;
+    return a.kind === 'tap' ? w.bar.attendantSpot(a.building, a.index) : w.stands.sellerSpot(a.stand);
+  }
+
+  private sameAssignment(a: ServiceAssignment | null): boolean {
+    const c = this.assignment;
+    if (!c || !a) return c === a; // both null
+    if (c.kind === 'tap' && a.kind === 'tap') return c.building === a.building && c.index === a.index;
+    if (c.kind === 'stand' && a.kind === 'stand') return c.stand === a.stand;
+    return false;
   }
 
   private needsToilet(w: World): boolean {
