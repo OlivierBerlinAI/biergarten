@@ -94,6 +94,7 @@ export class Person {
   private drinkTimer = 0;
   private drinkDuration = 1;
   private waitTimer = 0;
+  private lingerRounds = 0; // relax rounds spent winding down (resets on a fresh beer)
   private toiletDuration = 1; // frames of the current toilet visit (dirt is spread over it)
   private toiletWait = 0; // frames spent waiting in the toilet queue (for the malheur roll)
   private toiletStall: Stall | null = null; // the stall currently occupied, if any
@@ -429,6 +430,7 @@ export class Person {
     if (chance(0.008)) w.play('sip');
     if (this.drinkTimer <= 0) {
       this._thirst = 0; // a finished beer leaves the guest fully refreshed
+      this.lingerRounds = 0; // a fresh beer revives the urge to stay a while
       this.mugVisible = false;
       this.enterChilling();
     }
@@ -585,7 +587,25 @@ export class Person {
       return;
     }
     this.waitTimer--;
-    if (this.waitTimer <= 0) this.depart('hatte einen schönen Tag'); // content, head home
+    if (this.waitTimer > 0) return;
+    // Relaxed enough — decide whether to linger a bit longer or head home.
+    if (w.eco.salesOpen && this.decideToStay()) {
+      this.lingerRounds++;
+      this.waitTimer = Math.floor(rand(GUEST.relaxMin, GUEST.relaxMax));
+      w.log('mood', `#${this.id} bleibt noch ein Weilchen sitzen`, undefined, this.id);
+    } else if (w.eco.salesOpen) {
+      this.depart('hat genug entspannt, geht zufrieden heim');
+    } else {
+      this.depart('Feierabend, geht heim');
+    }
+  }
+
+  /** Content guests linger for another relaxed round; the chance fades each
+   *  round so nobody camps forever, and grumpy guests just leave. */
+  private decideToStay(): boolean {
+    const mood = clamp((this._satisfaction - 40) / 60, 0, 1); // 0 at sat≤40 … 1 at 100
+    const fade = Math.pow(0.6, this.lingerRounds); // 1, 0.6, 0.36, …
+    return chance(mood * 0.7 * fade);
   }
 
   /** Walk to the pretzel stand; on arrival pay and eat (or bail if sold out). */
