@@ -403,8 +403,12 @@ export const GUEST = {
   relaxMin: 500,
   relaxMax: 1100,
   bladderStartMax: 20,
+  /** A drunk beer doesn't hit the bladder directly: it fills the guest's
+   *  "stomach" by this much, which then trickles into the bladder over time. */
   bladderPerBeerMin: 22,
   bladderPerBeerMax: 42,
+  /** How much beer moves from the stomach into the bladder per frame (slow). */
+  bladderFlowPerFrame: 0.03,
   /** Above this bladder level a guest needs the toilet. */
   bladderToilet: 70,
   satisfactionStart: 70,

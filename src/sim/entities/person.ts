@@ -119,6 +119,7 @@ export class Person {
   private _spent = 0;
   private _thirst = rand(GUEST.thirstStartMin, GUEST.thirstStartMax);
   private _bladder = rand(0, GUEST.bladderStartMax);
+  private _stomach = 0; // beer drunk but not yet passed into the bladder
   private _hunger = rand(GUEST.hungerStartMin, GUEST.hungerStartMax);
   private _satisfaction: number = GUEST.satisfactionStart;
 
@@ -217,6 +218,15 @@ export class Person {
     this.curSpeed = this.speed * (w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult);
     this._thirst = clamp(this._thirst + this.thirstRate, 0, 100);
     this._hunger = clamp(this._hunger + this.hungerRate, 0, 100);
+
+    // Beer in the stomach slowly passes into the bladder (so it fills gradually
+    // long after the drink, not all at once while drinking). A full bladder
+    // backs the rest up in the stomach rather than losing it.
+    if (this._stomach > 0 && this._bladder < 100) {
+      const flow = Math.min(this._stomach, GUEST.bladderFlowPerFrame, 100 - this._bladder);
+      this._stomach -= flow;
+      this._bladder += flow;
+    }
 
     // Unmet thirst/hunger past the comfort level sour the mood — the further
     // past, the faster. No hard cap yanks them out any more; they just grow
@@ -413,7 +423,7 @@ export class Person {
     this.drinkTimer--;
     const frac = 1 / this.drinkDuration;
     this._thirst = clamp(this._thirst - this.thirstDelta * frac, 0, 100);
-    this._bladder = clamp(this._bladder + this.bladderDelta * frac, 0, 100);
+    this._stomach += this.bladderDelta * frac; // into the stomach, not straight to the bladder
     this.changeSat(w, this._satisfaction + GUEST.satDrinkPerBeer * frac, 'genießt das Bier');
     this.beerLevel = Math.max(0, this.drinkTimer / this.drinkDuration);
     if (chance(0.008)) w.play('sip');
