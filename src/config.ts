@@ -415,7 +415,7 @@ export const GUEST = {
   /** Min absolute satisfaction change (points) before a mood entry is logged. */
   moodLogThreshold: 4,
   /** Satisfaction lost per frame while queuing at the bar (waiting = unhappy). */
-  satPerQueueFrame: -0.05,
+  satPerQueueFrame: -0.025,
   /** Frames a guest will queue at the bar before giving up. */
   queueGiveUp: 360,
   /** Satisfaction hit when giving up the bar queue. */
