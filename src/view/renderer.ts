@@ -1049,15 +1049,17 @@ export class Renderer {
     const shadow = new paper.Path.Ellipse(new paper.Rectangle(-26, 12, 52, 8));
     shadow.fillColor = col('#000');
     shadow.opacity = 0.15;
+    const bodyCol = t.kind === 'beer' ? '#9c5a2a' : t.kind === 'klo' ? '#4f7fa6' : '#caa46a';
+    const roofCol = t.kind === 'beer' ? '#7a4420' : t.kind === 'klo' ? '#3c6486' : '#a37f44';
     const body = new paper.Path.Rectangle(new paper.Rectangle(-26, -14, 52, 24), new paper.Size(4, 4));
-    body.fillColor = col(t.kind === 'beer' ? '#9c5a2a' : '#4f7fa6');
+    body.fillColor = col(bodyCol);
     const roof = new paper.Path.Rectangle(new paper.Rectangle(-26, -18, 52, 8), new paper.Size(3, 3));
-    roof.fillColor = col(t.kind === 'beer' ? '#7a4420' : '#3c6486');
+    roof.fillColor = col(roofCol);
     const sign = new paper.Path.Rectangle(new paper.Rectangle(-12, -10, 24, 16), new paper.Size(2, 2));
     sign.fillColor = col('#fff');
     const icon = new paper.PointText({
       point: [0, 3],
-      content: t.kind === 'beer' ? '🍺' : '🚽',
+      content: t.kind === 'beer' ? '🍺' : t.kind === 'klo' ? '🚽' : '🥨',
       fontSize: 14,
       justification: 'center',
     });

@@ -357,6 +357,11 @@ export const DELIVERY = {
   beerServiceSeconds: 4,
   /** Gradual emptying of the waste tank once the Klowagen is parked. */
   kloServiceSeconds: 3,
+  /** Pretzel van unloading time once parked (the batch lands at the end). */
+  pretzelServiceSeconds: 2,
+  /** The baker's van takes this many in-game HOURS to arrive (random in range). */
+  pretzelMinHours: 1,
+  pretzelMaxHours: 2,
 } as const;
 
 /** How guests arrive each in-game hour. */

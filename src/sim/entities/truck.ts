@@ -6,7 +6,7 @@ import { stepToward, dist, type Vec } from '../vec.js';
 import { DELIVERY, WORLD } from '../../config.js';
 import type { World } from '../world.js';
 
-export type TruckKind = 'beer' | 'klo';
+export type TruckKind = 'beer' | 'klo' | 'pretzel';
 type Phase = 'enroute' | 'arriving' | 'servicing' | 'leaving';
 
 export class Truck {
@@ -38,8 +38,10 @@ export class Truck {
     this.enrouteTimer = total - driveIn; // invisible wait, then it drives in
     this.totalToArrival = total;
 
-    this.park = { ...park }; // drive to the actual tank (Game picks the spot)
-    this.serviceTotal = Math.round((kind === 'beer' ? DELIVERY.beerServiceSeconds : DELIVERY.kloServiceSeconds) * 60);
+    this.park = { ...park }; // drive to the actual tank / stand (Game picks the spot)
+    const serviceSeconds =
+      kind === 'beer' ? DELIVERY.beerServiceSeconds : kind === 'klo' ? DELIVERY.kloServiceSeconds : DELIVERY.pretzelServiceSeconds;
+    this.serviceTotal = Math.round(serviceSeconds * 60);
     this.serviceTimer = this.serviceTotal;
 
     const spawn: Vec = { x: WORLD.w + 70, y: this.park.y };
@@ -83,11 +85,13 @@ export class Truck {
           const per = this.amount / this.serviceTotal;
           w.eco.addBeer(per);
           this.delivered += per;
-        } else {
+        } else if (this.kind === 'klo') {
           w.eco.drainToilet(this.drainRate);
         }
+        // pretzels arrive as a single batch once the van finishes unloading.
         if (--this.serviceTimer <= 0) {
           if (this.kind === 'beer') w.eco.addBeer(this.amount - this.delivered); // rounding remainder
+          else if (this.kind === 'pretzel') w.eco.addPretzels(this.amount);
           this.facing = 1;
           this.phase = 'leaving';
         }

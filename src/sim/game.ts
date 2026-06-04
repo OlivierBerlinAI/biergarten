@@ -86,6 +86,7 @@ export class Game implements World {
 
   private beerTruck: Truck | null = null;
   private kloTruck: Truck | null = null;
+  private pretzelTruck: Truck | null = null;
 
   ended = false;
   outcome: Outcome | null = null;
@@ -195,7 +196,7 @@ export class Game implements World {
       this.lastDay = this.clock.day;
       const d = this.eco.newDay();
       if (d.discarded > 0) this.log('money', `Brezn vom Vortag entsorgt: ${d.discarded} 🥨`);
-      if (d.delivered > 0) this.log('money', `Brezn-Tageslieferung: ${d.delivered} 🥨`, -d.cost);
+      this.autoDeliverPretzels(); // baker's van rolls in (pretzels appear on arrival)
       const ad = this.eco.runAdvertising();
       if (ad.spent > 0) this.log('money', `Werbung geschaltet (Ruf +${ad.repGain.toFixed(1)})`, -ad.spent);
     }
@@ -261,6 +262,7 @@ export class Game implements World {
         this.trucks.splice(i, 1);
         if (t === this.beerTruck) this.beerTruck = null;
         if (t === this.kloTruck) this.kloTruck = null;
+        if (t === this.pretzelTruck) this.pretzelTruck = null;
       }
     }
 
@@ -406,16 +408,29 @@ export class Game implements World {
   setPretzelOrderAmount(amount: number): void {
     this.eco.setPretzelOrderAmount(amount);
   }
-  /** Order pretzels from the baker: pay now, delivered to the stock at once. */
+  /** Order pretzels from the baker: pay now; the van delivers after ~1–2 h. */
   orderPretzels(): boolean {
+    if (this.pretzelTruck) return false; // a delivery is already on its way
+    if (this.stands.count === 0) return false; // nowhere to deliver them
     const amount = this.eco.plannedPretzelOrder();
     if (amount <= 0) return false;
     const cost = this.eco.pretzelOrderCost(amount);
     if (!this.eco.spend(cost)) return false;
-    this.eco.addPretzels(amount);
+    this.pretzelTruck = this.spawnPretzelTruck(amount);
     this.play('cheers');
-    this.log('money', `Brezn bestellt: ${amount} 🥨`, -cost);
+    this.log('money', `Brezn bestellt: ${amount} 🥨 (Lieferung unterwegs)`, -cost);
     return true;
+  }
+
+  /** Dawn: if auto-delivery is on, send the baker's van (arrives ~1–2 h later). */
+  private autoDeliverPretzels(): void {
+    if (!this.eco.pretzelAutoDeliver || this.pretzelTruck || this.stands.count === 0) return;
+    const amount = this.eco.plannedPretzelOrder();
+    if (amount <= 0) return;
+    const cost = this.eco.pretzelOrderCost(amount);
+    if (!this.eco.spend(cost)) return; // can't afford today's batch — skip it
+    this.pretzelTruck = this.spawnPretzelTruck(amount);
+    this.log('money', `Brezn-Tageslieferung: ${amount} 🥨 (unterwegs)`, -cost);
   }
   /** Toggle the daily auto-delivery of fresh pretzels. */
   togglePretzelAutoDeliver(): boolean {
@@ -436,11 +451,31 @@ export class Game implements World {
   kloProgress(): number {
     return this.kloTruck ? this.kloTruck.arrivalProgress() : 0;
   }
+  pretzelOrderPending(): boolean {
+    return !!this.pretzelTruck;
+  }
+  pretzelOrderProgress(): number {
+    return this.pretzelTruck ? this.pretzelTruck.arrivalProgress() : 0;
+  }
 
   private spawnTruck(kind: 'beer' | 'klo', delaySeconds: number, amount: number): Truck {
     const t = new Truck(this.nextId++, kind, delaySeconds, amount, this.tankPark(kind));
     this.trucks.push(t);
     return t;
+  }
+
+  private spawnPretzelTruck(amount: number): Truck {
+    const secs = (DELIVERY.pretzelMinHours + Math.random() * (DELIVERY.pretzelMaxHours - DELIVERY.pretzelMinHours)) * CLOCK.secondsPerHour;
+    const t = new Truck(this.nextId++, 'pretzel', secs, amount, this.pretzelPark());
+    this.trucks.push(t);
+    return t;
+  }
+
+  /** Where the baker's van parks: just below the first stand (fallback: depot). */
+  private pretzelPark(): Vec {
+    const st = this.stands.list[0];
+    if (st) return { x: st.pos.x, y: st.pos.y + 36 };
+    return { x: PLACES.bar.x - 120, y: PLACES.bar.y + 72 };
   }
 
   /** Where a delivery truck parks: at the first tank of the matching kind. */

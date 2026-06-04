@@ -195,24 +195,14 @@ export class GameState {
   }
 
   /**
-   * A new in-game day begins: yesterday's pretzels are stale and get binned,
-   * and — if auto-delivery is on — a fresh batch is delivered and charged for.
-   * Returns what happened so the caller can log it.
+   * A new in-game day begins: yesterday's pretzels are stale and get binned.
+   * The fresh batch (auto-delivery) is no longer instant — Game sends the
+   * baker's van, so the stock only refills once it arrives.
    */
-  newDay(): { discarded: number; delivered: number; cost: number } {
+  newDay(): { discarded: number } {
     const discarded = this.pretzelStock;
     this.pretzelStock = 0;
-    let delivered = 0;
-    let cost = 0;
-    if (this.pretzelAutoDeliver) {
-      delivered = Math.min(ECONOMY.pretzelCapacity, this.pretzelOrderAmount);
-      if (delivered > 0) {
-        cost = this.pretzelOrderCost(delivered);
-        this.money -= cost; // charged like wages: may dip the balance
-        this.pretzelStock = delivered;
-      }
-    }
-    return { discarded, delivered, cost };
+    return { discarded };
   }
 
   // --- toilet --------------------------------------------------------------

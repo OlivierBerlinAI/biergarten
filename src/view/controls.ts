@@ -280,8 +280,14 @@ export class Controls {
     }
     const pretzelOrder = eco.plannedPretzelOrder();
     const pretzelCost = eco.pretzelOrderCost(pretzelOrder);
-    this.label('btn-pretzel-order', `🥨 Brezn bestellen (${pretzelOrder} · ${pretzelCost} €)`);
-    this.disabled('btn-pretzel-order', pretzelOrder <= 0 || !eco.canAfford(pretzelCost));
+    if (this.game.pretzelOrderPending()) {
+      const pct = Math.round(this.game.pretzelOrderProgress() * 100);
+      this.label('btn-pretzel-order', `🥨 Lieferung unterwegs… ${pct}%`);
+      this.disabled('btn-pretzel-order', true);
+    } else {
+      this.label('btn-pretzel-order', `🥨 Brezn bestellen (${pretzelOrder} · ${pretzelCost} €)`);
+      this.disabled('btn-pretzel-order', pretzelOrder <= 0 || !eco.canAfford(pretzelCost));
+    }
 
     this.text('cnt-bar', String(eco.bartenders));
     this.text('cost-bar', `einmalig ${eco.bartenderHireCost()} € · Lohn ${eco.bartenderWage()} €`);
