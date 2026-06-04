@@ -110,6 +110,7 @@ export class Person {
   private thirstDelta = 0;
   private bladderDelta = 0;
   private pendingAccident = false; // a malheur on the way out after an unusable toilet
+  private leaveReason = ''; // why they decided to head home (shown in the guest log)
 
   private wallet_ = rand(GUEST.walletMin, GUEST.walletMax);
   private _spent = 0;
@@ -359,7 +360,7 @@ export class Person {
     if (this.queueTimer > GUEST.queueGiveUp) {
       this.changeSat(w, this._satisfaction + GUEST.satQueueGiveUp, 'Warteschlange aufgegeben');
       w.bar.leave(this);
-      this.depart(); // disappointed at the bar -> go back for the towel, then leave
+      this.depart('Warteschlange aufgegeben'); // disappointed at the bar -> towel, then leave
     }
   }
 
@@ -375,6 +376,7 @@ export class Person {
       this._spent += price;
       this.mugVisible = true;
       this.beerLevel = 1;
+      w.log('money', `#${this.id} kauft ein Bier (${price.toFixed(2)} €)`, price, this.id);
       // Mood depends on how far the price strays from what guests expect to pay:
       // a bargain pleases (positive delta), a rip-off annoys (negative delta).
       const moodVsExpected = (ECONOMY.expectedPrice - price) * GUEST.satPerEuroVsExpected;
@@ -393,7 +395,7 @@ export class Person {
   private noBeerAtBar(w: World): void {
     this.mugVisible = false;
     if (w.eco.salesOpen) this.changeSat(w, Math.min(this._satisfaction, GUEST.satNoBeer), 'kein Bier am Tresen');
-    this.depart();
+    this.depart(w.eco.salesOpen ? 'kein Bier am Tresen' : 'Feierabend');
   }
 
   private toSeat(w: World): void {
@@ -521,7 +523,7 @@ export class Person {
     this.rejectedStalls.clear();
     this.changeSat(w, this._satisfaction + GUEST.satToiletUnusable, 'Klo unbenutzbar');
     this.pendingAccident = chance(GUEST.accidentChance);
-    this.depart();
+    this.depart('Klo unbenutzbar');
   }
 
   /** Every cabin in the nearest WC was too dirty: grab the towel and go home. */
@@ -530,7 +532,7 @@ export class Person {
     this.rejectedStalls.clear();
     this.changeSat(w, this._satisfaction + GUEST.satToiletUnusable, 'alle Kabinen zu schmutzig');
     this.pendingAccident = chance(GUEST.accidentChance);
-    this.depart();
+    this.depart('alle Kabinen zu schmutzig');
   }
 
   /** A malheur strikes while waiting in the queue: a puddle, then home in shame. */
@@ -540,7 +542,7 @@ export class Person {
     w.litter.add(this.pos, 'pee');
     this._bladder = 0;
     this.changeSat(w, this._satisfaction + GUEST.satGardenPee, 'Malheur in der Warteschlange');
-    this.depart();
+    this.depart('Malheur in der Warteschlange');
   }
 
   private goSit(w: World): void {
@@ -549,6 +551,7 @@ export class Person {
 
   private chilling(w: World): void {
     if (this._bladder >= GUEST.bladderToilet) {
+      w.log('mood', `#${this.id} muss mal – geht aufs Klo`, undefined, this.id);
       this.state = 'toToilet'; // walk to the toilet; find out there if it's usable
       return;
     }
@@ -564,12 +567,12 @@ export class Person {
         this.mugVisible = false;
         this.state = 'toBar';
       } else {
-        this.depart();
+        this.depart('Feierabend – kein Bier mehr'); // wants another but it's past last call
       }
       return;
     }
     this.waitTimer--;
-    if (this.waitTimer <= 0) this.depart(); // had a nice time, head home
+    if (this.waitTimer <= 0) this.depart('hatte einen schönen Tag'); // content, head home
   }
 
   /** Walk to the pretzel stand; on arrival pay and eat (or bail if sold out). */
@@ -661,9 +664,10 @@ export class Person {
     if (this.moveTo(w.places.entrance)) {
       this.flushAllMood(w); // emit any leftover mood before the departure summary
       const r = w.eco.recordDeparture(this._satisfaction);
+      const why = this.leaveReason ? ` – ${this.leaveReason}` : '';
       w.log(
         'reputation',
-        `#${this.id} geht ${r.happy ? 'zufrieden' : 'unzufrieden'} (Zufr. ${Math.round(this._satisfaction)}) · Ruf ${r.before.toFixed(1)}→${r.after.toFixed(1)}`,
+        `#${this.id} geht ${r.happy ? 'zufrieden' : 'unzufrieden'}${why} (Zufr. ${Math.round(this._satisfaction)}) · Ruf ${r.before.toFixed(1)}→${r.after.toFixed(1)}`,
         r.after - r.before,
         this.id,
       );
@@ -672,8 +676,10 @@ export class Person {
     return true;
   }
 
-  /** Head home; if a seat is still reserved, walk back for the towel first. */
-  private depart(): void {
+  /** Head home; if a seat is still reserved, walk back for the towel first.
+   *  `reason` is recorded for the departure line in the guest log. */
+  private depart(reason = ''): void {
+    if (reason) this.leaveReason = reason;
     this.mugVisible = false;
     this.pretzelVisible = false;
     this.state = this.seat ? 'fetchTowel' : 'leaving';
@@ -746,7 +752,7 @@ export class Person {
     this.changeSat(w, Math.min(this._satisfaction, satisfaction), reason);
     this.releaseSlot(w);
     w.stands.leave(this);
-    this.depart();
+    this.depart(reason);
   }
 
   /**
