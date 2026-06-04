@@ -305,7 +305,7 @@ export class Person {
     if (this.moveTo(this.wanderTarget)) this.wanderTarget = Person.randomSpot();
     if (this.lookTimer <= 0) {
       this.changeSat(w, GUEST.satNoSeat, 'kein Platz frei');
-      this.state = 'leaving';
+      this.depart('kein Platz frei');
     }
   }
 
