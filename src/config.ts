@@ -78,7 +78,7 @@ export interface Towel {
 }
 
 /** Population caps. */
-export const MAX_PEOPLE = 24;
+export const MAX_PEOPLE = 100;
 export const MAX_DOGS = 8;
 
 /** How the garden starts out. */
