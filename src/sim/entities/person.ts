@@ -326,8 +326,10 @@ export class Person {
 
   private toBar(w: World): void {
     if (!w.bar.has(this)) {
-      // Empty tank or no staffed tap to queue at: turn around before queuing.
-      if (!w.eco.canPourBeer() || !w.bar.join(this)) {
+      // Join the nearest staffed queue. A dry tank doesn't stop them lining up:
+      // they only discover the empty tank once they reach the counter (see
+      // queuing), so they actually walk over to find out — not from the seat.
+      if (!w.bar.join(this)) {
         this.noBeerAtBar(w);
         return;
       }
@@ -339,8 +341,9 @@ export class Person {
 
   private queuing(w: World): void {
     const atSpot = this.moveTo(w.bar.positionOf(this)); // shuffle up as the line advances
-    if (!w.eco.canPourBeer()) {
-      // Tank ran dry while waiting — give up the spot.
+    if (atSpot && w.bar.isFront(this) && !w.eco.canPourBeer()) {
+      // At the head of the queue they finally see the tap is dry — only now do
+      // they learn the tank is empty, then give up the spot.
       w.bar.leave(this);
       this.noBeerAtBar(w);
       return;

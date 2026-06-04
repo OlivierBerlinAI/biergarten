@@ -166,6 +166,13 @@ export class Bar {
     return this.tapOf(p) !== null;
   }
 
+  /** True once p has reached the head of its tap's queue (the counter spot),
+   *  regardless of whether a bartender is currently standing there. */
+  isFront(p: Person): boolean {
+    const tap = this.tapOf(p);
+    return !!tap && tap.queue[0] === p;
+  }
+
   /** True when p is at the head of its tap and the bartender is at the counter. */
   atCounter(p: Person): boolean {
     const tap = this.tapOf(p);
