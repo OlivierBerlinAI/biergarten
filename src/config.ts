@@ -396,8 +396,10 @@ export const GUEST = {
   thirstPerBeerMax: 45,
   /** Above this thirst a seated guest gets up for (another) beer. */
   thirstWantBeer: 30,
-  /** Passive thirst gained per frame while not drinking. */
-  thirstPerFrame: 0.03,
+  /** Passive thirst gained per frame while not drinking. Each guest rolls their
+   *  own rate in this range, so some get thirsty much faster than others. */
+  thirstPerFrameMin: 0.02,
+  thirstPerFrameMax: 0.045,
   /** Frames a guest relaxes at the table before getting thirsty enough / leaving. */
   relaxMin: 500,
   relaxMax: 1100,
@@ -428,9 +430,9 @@ export const GUEST = {
    * parched/starving — so an unmet need slowly makes a guest unhappy instead of
    * yanking them out the moment a bar hits 100.
    */
-  thirstComfort: 70,
-  hungerComfort: 70,
-  satDiscomfortPerFrame: 0.1, // per source (thirst, hunger) at full excess
+  thirstComfort: 80,
+  hungerComfort: 80,
+  satDiscomfortPerFrame: 0.04, // per source (thirst, hunger) at full excess — gentle
   /** Below this satisfaction a guest gives up and goes home — whatever the cause. */
   satLeave: 15,
   /** Satisfaction hit on finding the toilet full/too dirty to use. */
@@ -454,8 +456,10 @@ export const GUEST = {
   /** Guests arrive with a little hunger; it slowly builds while they stay. */
   hungerStartMin: 0,
   hungerStartMax: 20,
-  /** Passive hunger gained per frame. */
-  hungerPerFrame: 0.02,
+  /** Passive hunger gained per frame. Each guest rolls their own rate in this
+   *  range, so appetites differ from guest to guest. */
+  hungerPerFrameMin: 0.012,
+  hungerPerFrameMax: 0.03,
   /** Above this hunger a seated guest goes for a pretzel — if any is offered. */
   hungerWantPretzel: 55,
   /** Hunger removed by eating one pretzel. */

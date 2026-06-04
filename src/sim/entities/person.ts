@@ -105,6 +105,9 @@ export class Person {
   private queueTimer = 0;
   private serveTimer = 0;
   private serveDuration = 1;
+  // Per-guest appetites: some get thirsty / hungry faster than others.
+  private readonly thirstRate = rand(GUEST.thirstPerFrameMin, GUEST.thirstPerFrameMax);
+  private readonly hungerRate = rand(GUEST.hungerPerFrameMin, GUEST.hungerPerFrameMax);
   private lookTimer = 0;
   private wanderTarget: Vec = { x: 0, y: 0 };
   private thirstDelta = 0;
@@ -212,8 +215,8 @@ export class Person {
   tick(w: World): boolean {
     // Paths speed guests up; off the path they trudge along slower.
     this.curSpeed = this.speed * (w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult);
-    this._thirst = clamp(this._thirst + GUEST.thirstPerFrame, 0, 100);
-    this._hunger = clamp(this._hunger + GUEST.hungerPerFrame, 0, 100);
+    this._thirst = clamp(this._thirst + this.thirstRate, 0, 100);
+    this._hunger = clamp(this._hunger + this.hungerRate, 0, 100);
 
     // Unmet thirst/hunger past the comfort level sour the mood — the further
     // past, the faster. No hard cap yanks them out any more; they just grow
