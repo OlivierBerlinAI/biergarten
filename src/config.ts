@@ -397,8 +397,8 @@ export const GUEST = {
   thirstWantBeer: 30,
   /** Passive thirst gained per frame while not drinking. Each guest rolls their
    *  own rate in this range, so some get thirsty much faster than others. */
-  thirstPerFrameMin: 0.02,
-  thirstPerFrameMax: 0.045,
+  thirstPerFrameMin: 0.01,
+  thirstPerFrameMax: 0.0225,
   /** Frames a guest relaxes at the table before getting thirsty enough / leaving. */
   relaxMin: 500,
   relaxMax: 1100,
@@ -461,9 +461,9 @@ export const GUEST = {
   hungerStartMax: 20,
   /** Passive hunger gained per frame. Each guest rolls their own rate in this
    *  range — kept at most ~1/3 of the thirst rate, so people get hungry far
-   *  slower than thirsty (thirst 0.02–0.045 → hunger 0.007–0.015). */
-  hungerPerFrameMin: 0.007,
-  hungerPerFrameMax: 0.015,
+   *  slower than thirsty (thirst 0.01–0.0225 → hunger 0.0035–0.0075). */
+  hungerPerFrameMin: 0.0035,
+  hungerPerFrameMax: 0.0075,
   /** Above this hunger a seated guest goes for a pretzel — if any is offered. */
   hungerWantPretzel: 55,
   /** Hunger removed by eating one pretzel. */
