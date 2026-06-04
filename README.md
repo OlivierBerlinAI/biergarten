@@ -1,5 +1,8 @@
 # 🍺 Biergarten-Tycoon
 
+**▶️ Jetzt im Browser spielen: <https://olivierberlinai.github.io/biergarten/>**
+(automatisch via GitHub Pages bei jedem Push auf `main` veröffentlicht)
+
 Ein kleines Management-Spiel in **TypeScript** (Paper.js). Gäste kommen rein,
 holen sich Bier am Ausschank (und zahlen dafür), trinken am Biertisch, gehen bei
 voller Blase aufs Klo und dann wieder nach Hause. Hunde laufen gemütlich herum.
