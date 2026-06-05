@@ -460,7 +460,7 @@ export const GUEST = {
   // --- hunger (fed by the pretzel stand) -----------------------------------
   /** Guests arrive with a little hunger; it slowly builds while they stay. */
   hungerStartMin: 0,
-  hungerStartMax: 20,
+  hungerStartMax: 40,
   /** Passive hunger gained per frame. Each guest rolls their own rate in this
    *  range — kept at most ~1/3 of the thirst rate, so people get hungry far
    *  slower than thirsty (thirst 0.01–0.0225 → hunger 0.0035–0.0075). */
