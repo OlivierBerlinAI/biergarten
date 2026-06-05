@@ -428,6 +428,8 @@ export class Person {
     if (chance(0.008)) w.play('sip');
     if (this.drinkTimer <= 0) {
       this._thirst = 0; // a finished beer leaves the guest fully refreshed
+      // ...but a beer also stokes the appetite, so pretzels actually sell.
+      this._hunger = clamp(this._hunger + rand(GUEST.hungerPerBeerMin, GUEST.hungerPerBeerMax), 0, 100);
       this.mugVisible = false;
       this.enterChilling();
     }

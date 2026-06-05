@@ -466,6 +466,11 @@ export const GUEST = {
    *  slower than thirsty (thirst 0.01–0.0225 → hunger 0.0035–0.0075). */
   hungerPerFrameMin: 0.0035,
   hungerPerFrameMax: 0.0075,
+  /** Each finished beer makes guests noticeably hungrier (salt, time passing) —
+   *  a random 10–20 points on the 0–100 scale, rolled per beer. This is the
+   *  main driver of pretzel appetite; passive hunger alone builds far too slow. */
+  hungerPerBeerMin: 10,
+  hungerPerBeerMax: 20,
   /** Above this hunger a seated guest goes for a pretzel — if any is offered. */
   hungerWantPretzel: 55,
   /** Hunger removed by eating one pretzel. */
