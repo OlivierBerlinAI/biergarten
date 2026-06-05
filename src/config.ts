@@ -462,16 +462,16 @@ export const GUEST = {
   hungerStartMin: 0,
   hungerStartMax: 40,
   /** Passive hunger gained per frame. Each guest rolls their own rate in this
-   *  range — kept at most ~1/3 of the thirst rate, so people get hungry far
-   *  slower than thirsty (thirst 0.01–0.0225 → hunger 0.0035–0.0075). */
-  hungerPerFrameMin: 0.0035,
-  hungerPerFrameMax: 0.0075,
+   *  range — still slower than thirst (thirst 0.01–0.0225), but bumped 25% over
+   *  the old 0.0035–0.0075 so appetite builds at a livelier pace on its own. */
+  hungerPerFrameMin: 0.004375,
+  hungerPerFrameMax: 0.009375,
   /** Each finished beer makes guests noticeably hungrier (salt, time passing) —
-   *  a random 25–40 points on the 0–100 scale, rolled per beer. This is the
+   *  a random ~26–42 points on the 0–100 scale, rolled per beer. This is the
    *  main driver of pretzel appetite; passive hunger alone builds far too slow,
    *  and a smaller bump (10–20) was barely visible after a single beer. */
-  hungerPerBeerMin: 25,
-  hungerPerBeerMax: 40,
+  hungerPerBeerMin: 26.25,
+  hungerPerBeerMax: 42,
   /** Above this hunger a seated guest goes for a pretzel — if any is offered. */
   hungerWantPretzel: 55,
   /** Hunger removed by eating one pretzel. */
