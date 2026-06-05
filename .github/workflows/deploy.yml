@@ -29,12 +29,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # Assemble just the files the site serves (index.html + compiled dist/).
+      # Assemble the site (index.html + compiled JS). The JS is published under a
+      # per-commit path (dist-<sha>/) and index.html is rewritten to point at it,
+      # so every deploy loads under a fresh URL and browsers can never serve a
+      # stale module graph. A plain dist/ copy is kept too, so any browser still
+      # holding an old index.html (which references dist/main.js) doesn't 404.
       - name: Assemble site
         run: |
           mkdir _site
-          cp index.html _site/
-          cp -r dist _site/dist
+          SHA="${GITHUB_SHA::8}"
+          cp -r dist "_site/dist"
+          cp -r dist "_site/dist-$SHA"
+          sed "s#dist/main.js#dist-$SHA/main.js#" index.html > _site/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

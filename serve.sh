@@ -6,11 +6,10 @@ set -e
 PORT="${1:-8000}"
 cd "$(dirname "$0")"
 
-# TypeScript nach dist/ bauen, falls noch nicht geschehen (npm muss installiert sein)
-if [ ! -f dist/main.js ]; then
-  echo "ℹ️  dist/ fehlt – baue TypeScript (npm run build) ..."
-  npm run build
-fi
+# TypeScript IMMER frisch nach dist/ bauen, damit der Server nie alten Stand
+# ausliefert (sonst zeigt der Browser Quelländerungen nicht). npm muss da sein.
+echo "ℹ️  Baue TypeScript (npm run build) ..."
+npm run build
 
 # Erste nicht-lokale IPv4-Adresse für die LAN-URL ermitteln
 LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
