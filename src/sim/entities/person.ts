@@ -573,15 +573,18 @@ export class Person {
     // Reasons to head home — even with money left and a thirst:
     if (!w.eco.salesOpen) { this.depart('Garten schließt'); return; }
     if (this.visitTimer <= 0) { this.depart('Zeit ist um, muss weiter'); return; }
-    // Peckish and a stand is open — grab a pretzel.
-    if (this._hunger >= GUEST.hungerWantPretzel && w.foodAvailable() && !this.pretzelDisappointed) {
+    // Peckish (and a stand is open) vs. thirsty — answer the louder need first.
+    const wantsPretzel = this._hunger >= GUEST.hungerWantPretzel && w.foodAvailable() && !this.pretzelDisappointed;
+    const wantsBeer = this._thirst >= GUEST.thirstWantBeer;
+    // Food wins when they're hungrier than thirsty (or only hungry); otherwise beer.
+    if (wantsPretzel && (!wantsBeer || this._hunger > this._thirst)) {
       this.goEat(w);
       return;
     }
     // Thirsty: fetch another beer if they can still afford one, otherwise
     // they're out of money and call it a day. (Being un-thirsty is NOT a reason
     // to leave — they just keep relaxing until time/money/closing/mood says so.)
-    if (this._thirst >= GUEST.thirstWantBeer) {
+    if (wantsBeer) {
       if (this.wallet_ >= w.eco.beerPrice) {
         this.mugVisible = false;
         this.state = 'toBar'; // they only learn of an empty tank at the counter
