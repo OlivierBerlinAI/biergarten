@@ -109,6 +109,12 @@ export class Controls {
     this.onClick('btn-tree', () => { sound.init(); actions.beginPlace('tree'); });
     this.onClick('btn-dj', () => { sound.init(); actions.beginPlace('dj'); });
     this.onClick('btn-path', () => { sound.init(); actions.beginPlace('path'); });
+    const decoAutoBtn = this.el('btn-deco-auto');
+    this.onClick('btn-deco-auto', () => {
+      sound.init();
+      const on = game.toggleDecoAutoReplace();
+      if (decoAutoBtn) decoAutoBtn.textContent = `🔄 Auto-Austausch: ${on ? 'an' : 'aus'}`;
+    });
 
     this.onClick('btn-hire-gardener', () => { sound.init(); game.hireGardener(); });
     this.onClick('btn-fire-gardener', () => { sound.init(); game.fireGardener(); });

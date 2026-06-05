@@ -32,6 +32,19 @@ export function decoFootprint(kind: DecoKind): number {
 export class Deco {
   readonly list: DecoItem[] = [];
   private nextId = 1;
+  /** When on, gardeners tear out dead plants and replant fresh ones for money. */
+  autoReplace = false;
+
+  /** Flip auto-replace on/off; returns the new state. */
+  toggleAutoReplace(): boolean {
+    this.autoReplace = !this.autoReplace;
+    return this.autoReplace;
+  }
+
+  /** The first dead plant still standing — a gardener's replant candidate. */
+  firstDead(): DecoItem | null {
+    return this.list.find((d) => d.dead) ?? null;
+  }
 
   add(pos: Vec, kind: DecoKind): DecoItem {
     const d: DecoItem = {

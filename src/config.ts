@@ -180,6 +180,9 @@ export const DECO = {
   waterPerFrame: 0.7,
   /** Below this condition a plant counts as dead (perceived negatively). */
   deadThreshold: 25,
+  /** Frames a gardener spends tearing out a dead plant and planting a fresh one
+   *  (only when the Deko auto-replace mode is on). */
+  replantFrames: 150,
   /**
    * A plant only "asks" for water once its condition drops below its own
    * threshold, rolled per plant in this range so they don't all wilt in sync.

@@ -495,6 +495,13 @@ export class Game implements World {
     return on;
   }
 
+  /** Toggle whether gardeners replant dead decorations for money. */
+  toggleDecoAutoReplace(): boolean {
+    const on = this.deco.toggleAutoReplace();
+    this.log('money', `Deko-Auto-Austausch ${on ? 'an' : 'aus'}`);
+    return on;
+  }
+
   beerOrderPending(): boolean {
     return !!this.beerTruck;
   }

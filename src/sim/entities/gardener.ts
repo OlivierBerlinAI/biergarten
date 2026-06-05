@@ -7,7 +7,7 @@ import { WORLD, DECO, PATH } from '../../config.js';
 import type { DecoItem } from '../deco.js';
 import type { World } from '../world.js';
 
-type GardenerState = 'idle' | 'toPlant' | 'watering' | 'goHome';
+type GardenerState = 'idle' | 'toPlant' | 'watering' | 'replacing' | 'goHome';
 
 export class Gardener {
   readonly id: number;
@@ -17,6 +17,7 @@ export class Gardener {
   private state: GardenerState = 'idle';
   private readonly speed = rand(1.0, 1.4);
   private target: DecoItem | null = null;
+  private replantTimer = 0;
   private wander: Vec;
   private pathMult = 1;
 
@@ -28,7 +29,7 @@ export class Gardener {
   }
 
   get moving(): boolean {
-    return this.state !== 'watering';
+    return this.state !== 'watering' && this.state !== 'replacing';
   }
 
   get goingHome(): boolean {
@@ -46,7 +47,11 @@ export class Gardener {
     this.pathMult = w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult;
     switch (this.state) {
       case 'idle': {
-        const t = w.deco.thirstiest();
+        // First save a wilting plant; only then (if auto-replace is on and we can
+        // afford it) head for a dead one to tear out and replant.
+        const thirsty = w.deco.thirstiest();
+        const dead = !thirsty && w.deco.autoReplace ? w.deco.firstDead() : null;
+        const t = thirsty ?? (dead && w.eco.canAfford(w.eco.plantCost(dead.kind)) ? dead : null);
         if (t) {
           this.target = t;
           this.state = 'toPlant';
@@ -58,21 +63,58 @@ export class Gardener {
       case 'toPlant': {
         const t = this.target;
         if (!t || !w.deco.list.includes(t)) {
+          this.target = null;
           this.state = 'idle';
           break;
         }
-        if (this.moveTo(t.pos, this.speed)) this.state = 'watering';
+        if (this.moveTo(t.pos, this.speed)) {
+          // Arrived. A plant that died on the way can't be watered — replant it if
+          // that mode is on and we can pay, otherwise drop it and move on (no more
+          // standing forever over a corpse).
+          if (t.dead) {
+            if (w.deco.autoReplace && w.eco.canAfford(w.eco.plantCost(t.kind))) {
+              this.replantTimer = DECO.replantFrames;
+              this.state = 'replacing';
+            } else {
+              this.target = null;
+              this.state = 'idle';
+            }
+          } else {
+            this.state = 'watering';
+          }
+        }
         break;
       }
       case 'watering': {
         const t = this.target;
-        if (!t || !w.deco.list.includes(t)) {
+        if (!t || !w.deco.list.includes(t) || t.dead) {
           this.target = null;
           this.state = 'idle';
           break;
         }
         w.deco.water(t, DECO.waterPerFrame);
         if (t.condition >= 100) {
+          this.target = null;
+          this.state = 'idle';
+        }
+        break;
+      }
+      case 'replacing': {
+        const t = this.target;
+        if (!t || !w.deco.list.includes(t) || !t.dead) {
+          this.target = null;
+          this.state = 'idle';
+          break;
+        }
+        if (--this.replantTimer <= 0) {
+          // Tear out the dead plant and pay for a fresh one of the same kind in its spot.
+          const cost = w.eco.plantCost(t.kind);
+          if (w.eco.spend(cost)) {
+            const { pos, kind } = t;
+            w.deco.remove(t.id);
+            w.deco.add(pos, kind);
+            w.log('money', `Gärtner ersetzt eine tote Pflanze`, -cost);
+          }
           this.target = null;
           this.state = 'idle';
         }

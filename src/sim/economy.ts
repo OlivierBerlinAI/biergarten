@@ -3,6 +3,7 @@
 // this single source of truth.
 
 import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START } from '../config.js';
+import type { DecoKind } from './deco.js';
 
 export type Outcome = 'win' | 'lose';
 
@@ -233,6 +234,11 @@ export class GameState {
 
   treeCost(): number {
     return ECONOMY.treeCost;
+  }
+
+  /** What one plant of the given kind costs to buy/replant. */
+  plantCost(kind: DecoKind): number {
+    return kind === 'tree' ? this.treeCost() : kind === 'flower' ? this.flowerCost() : this.bushCost();
   }
 
   djCost(): number {
