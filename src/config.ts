@@ -480,7 +480,7 @@ export const GUEST = {
    * (1 € → +10), a rip-off annoys harder (16 € → −25).
    */
   satPerEuroBelowExpected: 10 / 3, // +10 at 1 € (3 € under)
-  satPerEuroAboveExpected: 25 / 8, // −37.5 at 16 € (12 € over)
+  satPerEuroAboveExpected: 25 / 12, // −25 at 16 € (12 € over) — 2/3 of the old 25/8
   /** Satisfaction gained over the course of drinking one beer (drinking = happy). */
   satDrinkPerBeer: 12,
   /** Satisfaction gained from a toilet visit (relief = happy). */
