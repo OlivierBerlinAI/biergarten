@@ -70,16 +70,6 @@ export class Stands {
     return this.list.some((s) => s.autoDeliver);
   }
 
-  /** At least one stand is staffed AND has pretzels to sell. */
-  anyServable(): boolean {
-    return this.list.some((s) => s.seller !== null && s.stock >= 1);
-  }
-
-  /** At least one stand currently has a seller standing at it. */
-  hasSeller(): boolean {
-    return this.list.some((s) => s.seller !== null);
-  }
-
   /** Bin every stand's leftover stock at day's end; returns the total binned. */
   binAll(): number {
     let discarded = 0;
@@ -125,21 +115,33 @@ export class Stands {
 
   // --- queueing (mirrors the bar) ------------------------------------------
 
-  /** Join the nearest staffed stand that still has pretzels. False if none. */
+  /**
+   * Queue the guest at a stand. Prefer the nearest one that can actually serve
+   * (staffed + stock); if none can, fall back to the nearest stand at all, so the
+   * guest walks over and only there discovers it's empty. False only if there are
+   * no stands to walk to.
+   */
   join(p: Person): boolean {
+    const best =
+      this.pickNearest(p.pos, (s) => s.seller !== null && s.stock >= 1) ??
+      this.pickNearest(p.pos, () => true);
+    if (!best) return false;
+    best.queue.push(p);
+    return true;
+  }
+
+  private pickNearest(from: Vec, ok: (s: Stand) => boolean): Stand | null {
     let best: Stand | null = null;
     let bestDist = Infinity;
     for (const s of this.list) {
-      if (!s.seller || s.stock < 1) continue;
-      const d = dist(s.pos, p.pos);
+      if (!ok(s)) continue;
+      const d = dist(s.pos, from);
       if (d < bestDist) {
         bestDist = d;
         best = s;
       }
     }
-    if (!best) return false;
-    best.queue.push(p);
-    return true;
+    return best;
   }
 
   has(p: Person): boolean {

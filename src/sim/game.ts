@@ -298,10 +298,6 @@ export class Game implements World {
     for (const p of this.people) p.upset(this, DOGCATCHER.satPerDog); // guests dislike the spectacle
   }
 
-  /** Food is on offer only when a staffed stand has pretzels in stock. */
-  foodAvailable(): boolean {
-    return this.stands.anyServable();
-  }
 
   /** Drain queued sound effects (the view plays them; CLI ignores). */
   drainSounds(): SfxName[] {

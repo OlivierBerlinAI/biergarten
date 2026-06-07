@@ -35,8 +35,6 @@ export interface World {
   readonly litter: LitterField;
   readonly bar: Bar;
   readonly eco: GameState;
-  /** True when a guest can actually get a pretzel: a stand exists and stock > 0. */
-  foodAvailable(): boolean;
   play(name: SfxName): void;
   /** Record a debugging event (drained by the on-screen log window). */
   log(cat: LogCat, msg: string, delta?: number, who?: number): void;

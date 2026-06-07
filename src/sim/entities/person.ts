@@ -441,10 +441,12 @@ export class Person {
 
   private toToilet(w: World): void {
     // Pick the nearest WC the first time, then try its cabins one at a time.
+    // They commit to walking there even if the tank is full — that's only
+    // discovered once they actually reach the WC (below).
     if (!w.toilets.has(this) && this.toiletHouse === null) {
       const h = w.toilets.nearest(this.pos);
-      if (!h || w.eco.toiletTankFull()) {
-        this.toiletUnusable(w);
+      if (!h) {
+        this.toiletUnusable(w); // there's no WC at all to walk to
         return;
       }
       this.toiletHouse = h;
@@ -462,7 +464,8 @@ export class Person {
       this.toiletWait = 0;
     }
     const atSpot = this.moveTo(w.toilets.positionOf(this));
-    if (w.eco.toiletTankFull()) {
+    // Only once they've reached the WC do they notice a full tank (no flushing).
+    if (atSpot && w.eco.toiletTankFull()) {
       w.toilets.leave(this);
       this.toiletUnusable(w);
       return;
@@ -577,8 +580,9 @@ export class Person {
     // Reasons to head home — even with money left and a thirst:
     if (!w.eco.salesOpen) { this.depart('Garten schließt'); return; }
     if (this.visitTimer <= 0) { this.depart('Zeit ist um, muss weiter'); return; }
-    // Peckish (and a stand is open) vs. thirsty — answer the louder need first.
-    const wantsPretzel = this._hunger >= GUEST.hungerWantPretzel && w.foodAvailable() && !this.pretzelDisappointed;
+    // Peckish (and a stand exists to walk to) vs. thirsty — answer the louder
+    // need first. Whether the stand actually has pretzels is found out there.
+    const wantsPretzel = this._hunger >= GUEST.hungerWantPretzel && w.stands.count > 0 && !this.pretzelDisappointed;
     const wantsBeer = this._thirst >= GUEST.thirstWantBeer;
     // Food wins when they're hungrier than thirsty (or only hungry); otherwise beer.
     if (wantsPretzel && (!wantsBeer || this._hunger > this._thirst)) {
@@ -602,19 +606,21 @@ export class Person {
   /** Queue at a pretzel stand, get served (10× faster than a beer), pay and eat. */
   private toStand(w: World): void {
     if (!w.stands.has(this)) {
-      if (!w.foodAvailable() || !w.stands.join(this)) {
-        this.standDisappointed(w); // no seller / sold out before we even queued
+      if (!w.stands.join(this)) {
+        this.standDisappointed(w); // there's no stand at all to walk to
         return;
       }
       this.standServeTimer = 0;
     }
     const atSpot = this.moveTo(w.stands.positionOf(this));
+    if (!atSpot) return; // still walking over; find out the situation at the stand
+    // Arrived: only here do they notice an empty (or sold-out) stand.
     if ((w.stands.standOf(this)?.stock ?? 0) < 1) {
-      w.stands.leave(this); // this stand ran out while we were in line
+      w.stands.leave(this);
       this.standDisappointed(w);
       return;
     }
-    if (atSpot && w.stands.atCounter(this)) {
+    if (w.stands.atCounter(this)) {
       if (this.standServeTimer <= 0) {
         this.standServeDuration = Math.max(1, Math.floor(rand(STAFF.serveMin, STAFF.serveMax) / STAFF.pretzelServeDivisor));
         this.standServeTimer = this.standServeDuration;
