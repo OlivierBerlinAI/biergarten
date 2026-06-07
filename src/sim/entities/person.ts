@@ -239,7 +239,7 @@ export class Person {
     const tExcess = (this._thirst - GUEST.thirstComfort) / (100 - GUEST.thirstComfort);
     const hExcess = (this._hunger - GUEST.hungerComfort) / (100 - GUEST.hungerComfort);
     if (tExcess > 0) this.changeSat(w, this._satisfaction - GUEST.satDiscomfortPerFrame * tExcess, 'großer Durst');
-    if (hExcess > 0) this.changeSat(w, this._satisfaction - GUEST.satDiscomfortPerFrame * hExcess, 'großer Hunger');
+    if (hExcess > 0) this.changeSat(w, this._satisfaction - GUEST.satHungerDiscomfortPerFrame * hExcess, 'großer Hunger');
 
     const piles = w.litter.countNear(this.pos, LITTER.nearRadius);
     if (piles > 0) {

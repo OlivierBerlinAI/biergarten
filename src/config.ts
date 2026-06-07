@@ -463,7 +463,8 @@ export const GUEST = {
    */
   thirstComfort: 80,
   hungerComfort: 80,
-  satDiscomfortPerFrame: 0.04, // per source (thirst, hunger) at full excess — gentle
+  satDiscomfortPerFrame: 0.04, // thirst, at full excess — gentle
+  satHungerDiscomfortPerFrame: 0.01, // hunger bites a quarter as hard as thirst
   /** Below this satisfaction a guest gives up and goes home — whatever the cause. */
   satLeave: 15,
   /** Satisfaction hit on finding the toilet full/too dirty to use. */
