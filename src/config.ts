@@ -119,8 +119,8 @@ export const STAFF = {
    * Staff slowly need the toilet too. Each worker rolls their own fill rate in
    * this range, so they don't all need to go at the same time.
    */
-  bladderRateMin: 0.007,
-  bladderRateMax: 0.018,
+  bladderRateMin: 0.00425,
+  bladderRateMax: 0.02075,
   /** Above this bladder a staff member breaks off to queue for the toilet. */
   bladderToilet: 75,
   /** Frames a staff toilet visit takes. */
