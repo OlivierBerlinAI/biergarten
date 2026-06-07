@@ -353,7 +353,7 @@ export const ECONOMY = {
   treeCost: 150,
   djCost: 250,
   /** Cost to lay one path tile. */
-  pathCost: 10,
+  pathCost: 5,
   /** Daily advertising budget the player can set (slider bounds), in euros. */
   adBudget: { min: 0, max: 200, start: 0, step: 10 },
   /** Reputation points gained per euro of advertising spent at day start. */
