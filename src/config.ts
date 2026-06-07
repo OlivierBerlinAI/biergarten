@@ -305,8 +305,9 @@ export const REPUTATION = {
 export const ECONOMY = {
   /** Beer price the player sets (slider bounds), in euros. */
   price: { min: 1, max: 16, start: 4, step: 0.5 },
-  /** What guests consider a "fair" price — they compare against this. */
-  expectedPrice: 4,
+  /** What guests consider a "fair" price — they compare against this (mood is
+   *  ±0 here; cheaper pleases, dearer annoys). */
+  expectedPrice: 8,
   /**
    * Volume discount when restocking: cost per litre at given order sizes.
    * Interpolated on a log scale between these anchors.
@@ -474,13 +475,12 @@ export const GUEST = {
   /** Satisfaction hit when an accident happens (relieving in the garden). */
   satGardenPee: -28,
   /**
-   * Satisfaction change per euro the price deviates from ECONOMY.expectedPrice.
-   * At the expected price (4 €) the change is 0. The two sides have different
-   * slopes so the anchors land where we want: a bargain pleases more gently
-   * (1 € → +10), a rip-off annoys harder (16 € → −25).
+   * Satisfaction change per euro the price deviates from ECONOMY.expectedPrice
+   * (8 €), where the change is 0. The two sides have different slopes: a bargain
+   * pleases more gently below, a rip-off annoys above.
    */
-  satPerEuroBelowExpected: 10 / 3, // +10 at 1 € (3 € under)
-  satPerEuroAboveExpected: 25 / 12, // −25 at 16 € (12 € over) — 2/3 of the old 25/8
+  satPerEuroBelowExpected: 10 / 3, // e.g. 1 € (7 € under) → +23
+  satPerEuroAboveExpected: 25 / 12, // e.g. 20 € (12 € over) → −25
   /** Satisfaction gained over the course of drinking one beer (drinking = happy). */
   satDrinkPerBeer: 12,
   /** Satisfaction gained from a toilet visit (relief = happy). */
