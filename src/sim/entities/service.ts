@@ -30,6 +30,10 @@ export class ServiceStaff {
   private readonly speed = rand(1.5, 2.1);
   private _bladder = rand(0, 30);
   private readonly bladderRate = rand(STAFF.bladderRateMin, STAFF.bladderRateMax);
+  // Set when they reach a full WC: they head back to their post and wet
+  // themselves partway there (a puddle drops when the timer runs out).
+  private pendingMalheur = false;
+  private malheurTimer = 0;
   private toiletDuration = 1;
   private waitTimer = 0;
   private toiletStall: Stall | null = null;
@@ -80,6 +84,12 @@ export class ServiceStaff {
 
   tick(w: World): boolean {
     this.pathMult = w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult;
+    // A malheur from a full WC catches up with them on the way back to the post.
+    if (this.pendingMalheur && --this.malheurTimer <= 0) {
+      w.litter.add(this.pos, 'pee');
+      this._bladder = 0;
+      this.pendingMalheur = false;
+    }
     switch (this.state) {
       case 'arriving': {
         const spot = this.workSpot(w);
@@ -91,12 +101,12 @@ export class ServiceStaff {
         const spot = this.workSpot(w);
         if (!spot) { this.state = 'idle'; break; } // post vanished (reassigned/torn down)
         this.moveTo(spot); // settle onto the spot
-        if (this.needsToilet(w)) this.state = 'toToilet';
+        if (!this.pendingMalheur && this.needsToilet(w)) this.state = 'toToilet';
         break;
       }
       case 'idle': {
         if (this.assignment) { this.state = 'arriving'; break; }
-        if (this.needsToilet(w)) { this.state = 'toToilet'; break; }
+        if (!this.pendingMalheur && this.needsToilet(w)) { this.state = 'toToilet'; break; }
         if (this.idlePause > 0) { this.idlePause--; break; }
         if (this.idleDog) {
           if (this.moveTo(this.idleDog.pos) || dist(this.pos, this.idleDog.pos) < 24) {
@@ -120,6 +130,15 @@ export class ServiceStaff {
           break;
         }
         const atSpot = this.moveTo(w.toilets.positionOf(this));
+        // Only on arrival do they notice the tank is full and can't go — back to
+        // the post, and a malheur strikes somewhere along the way.
+        if (atSpot && w.eco.toiletTankFull()) {
+          w.toilets.leave(this);
+          this.pendingMalheur = true;
+          this.malheurTimer = Math.floor(rand(20, 60));
+          this.state = this.assignment ? 'arriving' : 'idle';
+          break;
+        }
         if (atSpot && w.toilets.atStallFront(this)) {
           this.toiletStall = w.toilets.enter(this);
           this.toiletDuration = Math.floor(rand(STAFF.toiletMin, STAFF.toiletMax));
