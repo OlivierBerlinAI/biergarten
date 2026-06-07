@@ -35,6 +35,9 @@ export class Cleaner {
   private toiletDuration = 1;
   private waitTimer = 0;
   private toiletStall: Stall | null = null;
+  // Set when they reach a full WC and can't go: a malheur strikes on the way back.
+  private pendingMalheur = false;
+  private malheurTimer = 0;
   private pathMult = 1;
 
   constructor(id: number, entrance: Vec) {
@@ -73,10 +76,17 @@ export class Cleaner {
 
   tick(w: World): boolean {
     this.pathMult = w.paths.onPath(this.pos) ? PATH.onSpeedMult : PATH.offSpeedMult;
-    // Everyone needs the loo now and then — but not mid-clean or already going.
+    // A malheur from a full WC catches up with them while they carry on cleaning.
+    if (this.pendingMalheur && --this.malheurTimer <= 0) {
+      w.litter.add(this.pos, 'pee');
+      this._bladder = 0;
+      this.pendingMalheur = false;
+    }
+    // Everyone needs the loo now and then — but not mid-clean or already going,
+    // and not while a malheur is still pending (bladder hasn't let go yet).
     if (this.state !== 'goHome' && this.state !== 'breakToilet' && this.state !== 'onToilet') {
       this._bladder = clamp(this._bladder + this.bladderRate, 0, 100);
-      if (this._bladder >= STAFF.bladderToilet && w.toilets.count > 0) {
+      if (!this.pendingMalheur && this._bladder >= STAFF.bladderToilet && w.toilets.count > 0) {
         if (this.target) this.target.claimed = false;
         this.target = null;
         this.releaseCleaning(w); // free any cabin we were scrubbing
@@ -172,6 +182,15 @@ export class Cleaner {
       return;
     }
     const atSpot = this.moveTo(w.toilets.positionOf(this), this.speed);
+    // Only on arrival do they notice the tank is full and can't go — back to
+    // work, and a malheur strikes somewhere along the way (like the guests/service).
+    if (atSpot && w.eco.toiletTankFull()) {
+      w.toilets.leave(this);
+      this.pendingMalheur = true;
+      this.malheurTimer = Math.floor(rand(20, 60));
+      this.state = 'idle';
+      return;
+    }
     if (atSpot && w.toilets.atStallFront(this)) {
       this.toiletStall = w.toilets.enter(this);
       this.toiletDuration = Math.floor(rand(STAFF.toiletMin, STAFF.toiletMax));
