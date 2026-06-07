@@ -155,6 +155,7 @@ export class Game implements World {
 
   /** Strip the garden bare for a "blank field" start: nothing built, low repute. */
   makeBlank(): void {
+    const pathTiles = this.paths.list.length; // captured before we clear them below
     this.seating.units.length = 0;
     this.bar.list.length = 0;
     this.toilets.list.length = 0;
@@ -180,7 +181,8 @@ export class Game implements World {
     // so both starts begin with the same total wealth.
     const basicsValue =
       ECONOMY.ausschankCost + ECONOMY.wcHouseCost + ECONOMY.beerTankCost + ECONOMY.wasteTankCost +
-      ECONOMY.tableCost + 2 * ECONOMY.benchCost + ECONOMY.standCost + 4 * ECONOMY.treeCost;
+      ECONOMY.tableCost + 2 * ECONOMY.benchCost + ECONOMY.standCost + 4 * ECONOMY.treeCost +
+      pathTiles * ECONOMY.pathCost;
     this.eco.money = START.money + basicsValue;
   }
 
