@@ -275,11 +275,15 @@ export const GAME_OVER = {
 
 /** How a departing guest's satisfaction moves the long-term reputation. */
 export const REPUTATION = {
-  /** Smoothing weight for content guests (higher = slower drift). */
-  happyWeight: 24,
-  /** Much smaller weight for unhappy guests, so they hurt reputation hard. */
-  unhappyWeight: 6,
-  /** A guest leaving below this satisfaction counts as "unhappy". */
+  /** Long-term reputation is the average satisfaction of the last N departing
+   *  guests (a rolling window). Until N guests have left it's anchored to the
+   *  starting reputation, so a fresh garden ramps up slowly instead of swinging
+   *  wildly on the first few departures. */
+  window: 1000,
+  /** Advertising buys a boost on top of the guest average; it fades by this
+   *  fraction each day, so the effect has to be kept up to last. */
+  adBonusDailyDecay: 0.85,
+  /** A guest leaving below this satisfaction counts as "unhappy" (for the log). */
   unhappyThreshold: 35,
 } as const;
 

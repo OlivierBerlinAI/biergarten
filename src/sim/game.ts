@@ -175,7 +175,7 @@ export class Game implements World {
     this.eco.djWorkers = 0;
     this.djStaff.length = 0;
     this.eco.beer.current = 0; // no tank, no stock
-    this.eco.reputation = START.blankReputation; // so guests trickle in slowly
+    this.eco.resetReputation(START.blankReputation); // so guests trickle in slowly
     // Hand over the cash equivalent of everything the "basics" start gives you,
     // so both starts begin with the same total wealth.
     const basicsValue =

@@ -3,6 +3,7 @@
 // this single source of truth.
 
 import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START } from '../config.js';
+import { clamp } from './vec.js';
 import type { DecoKind } from './deco.js';
 
 export type Outcome = 'win' | 'lose';
@@ -16,7 +17,15 @@ export interface Tank {
 export class GameState {
   money: number = START.money;
   beerPrice: number = ECONOMY.price.start;
-  reputation: number = START.reputation; // long-term satisfaction, 0..100
+
+  // Long-term reputation: a rolling average over the last REPUTATION.window
+  // departing guests. Until the window fills, the empty slots count as the
+  // baseline, so the garden ramps up from the starting reputation. Advertising
+  // adds a separate, daily-fading boost on top (see runAdvertising).
+  private repBaseline: number = START.reputation;
+  private repWindow: number[] = []; // satisfaction of the most recent guests
+  private repSum = 0; // running Σ of repWindow, kept in sync on push/evict
+  private adBonus = 0; // current advertising boost on top of the guest average
 
   /** Servicekräfte: the merged beer+pretzel staff, allocated to taps/stands by Game. */
   service: number = START.service;
@@ -180,11 +189,12 @@ export class GameState {
    * Spends only what's actually affordable. Returns what happened, to log it.
    */
   runAdvertising(): { spent: number; repGain: number } {
+    this.adBonus *= REPUTATION.adBonusDailyDecay; // yesterday's boost fades a little
     const spend = Math.min(this.adBudget, Math.max(0, this.money));
     if (spend <= 0) return { spent: 0, repGain: 0 };
     this.money -= spend;
-    const repGain = Math.min(100 - this.reputation, spend * ECONOMY.adRepPerEuro);
-    this.reputation = Math.min(100, this.reputation + repGain);
+    const repGain = Math.max(0, Math.min(100 - this.reputation, spend * ECONOMY.adRepPerEuro));
+    this.adBonus += repGain;
     return { spent: spend, repGain };
   }
 
@@ -381,16 +391,40 @@ export class GameState {
   }
 
   /**
-   * Fold a departing guest's final satisfaction into the long-term reputation.
-   * Unhappy guests are weighted much more heavily, so they hurt the rep hard.
-   * Returns the before/after reputation so callers can log why it moved.
+   * Long-term reputation (0..100): the average satisfaction of the last
+   * REPUTATION.window departing guests, with any not-yet-seen slots counting as
+   * the baseline, plus the current advertising boost.
+   */
+  get reputation(): number {
+    const seedSlots = Math.max(0, REPUTATION.window - this.repWindow.length);
+    const mean = (this.repSum + this.repBaseline * seedSlots) / REPUTATION.window;
+    return clamp(mean + this.adBonus, 0, 100);
+  }
+
+  /** Reset reputation to a fresh baseline (e.g. the low "blank field" start),
+   *  clearing the rolling window and any advertising boost. */
+  resetReputation(value: number): void {
+    this.repBaseline = value;
+    this.repWindow = [];
+    this.repSum = 0;
+    this.adBonus = 0;
+  }
+
+  /**
+   * Fold a departing guest's final satisfaction into the long-term reputation:
+   * push it onto the rolling window of the last REPUTATION.window guests (evicting
+   * the oldest once full). Returns the before/after reputation so callers can log
+   * why it moved.
    */
   recordDeparture(satisfaction: number): { before: number; after: number; happy: boolean } {
-    this.guestsDeparted += 1;
-    const happy = satisfaction >= REPUTATION.unhappyThreshold;
-    const weight = happy ? REPUTATION.happyWeight : REPUTATION.unhappyWeight;
     const before = this.reputation;
-    this.reputation = (before * weight + satisfaction) / (weight + 1);
+    this.guestsDeparted += 1;
+    this.repWindow.push(satisfaction);
+    this.repSum += satisfaction;
+    if (this.repWindow.length > REPUTATION.window) {
+      this.repSum -= this.repWindow.shift()!; // drop the oldest guest from the average
+    }
+    const happy = satisfaction >= REPUTATION.unhappyThreshold;
     return { before, after: this.reputation, happy };
   }
 
