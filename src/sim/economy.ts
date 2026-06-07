@@ -2,7 +2,7 @@
 // long-term reputation. Pure logic, no rendering — entities and the UI talk to
 // this single source of truth.
 
-import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START } from '../config.js';
+import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START, TOILET } from '../config.js';
 import { clamp } from './vec.js';
 import type { DecoKind } from './deco.js';
 
@@ -76,11 +76,11 @@ export class GameState {
     return this.beer.current >= 1 && this.salesOpen;
   }
 
-  /** Serve one beer: empties the tank by 1 litre (which becomes 1 litre of waste). */
+  /** Serve one beer: empties the beer tank by 1 litre. (The waste tank no longer
+   *  fills here — it fills when someone actually uses the loo, see useToilet.) */
   pourBeer(): boolean {
     if (!this.canPourBeer()) return false;
     this.beer.current -= 1;
-    this.toilet.current = Math.min(this.toilet.capacity, this.toilet.current + 1); // 1L in -> 1L out
     this.money += this.beerPrice;
     this.totalEarned += this.beerPrice;
     this.beersSold += 1;
@@ -113,6 +113,11 @@ export class GameState {
   /** Add delivered beer to the tank (the truck calls this gradually). */
   addBeer(litres: number): void {
     this.beer.current = Math.min(this.beer.capacity, this.beer.current + litres);
+  }
+
+  /** A completed toilet visit adds its waste to the shared tank (capped at full). */
+  useToilet(): void {
+    this.toilet.current = Math.min(this.toilet.capacity, this.toilet.current + TOILET.wastePerUse);
   }
 
   /** Pump waste out of the tank (the Klowagen calls this gradually). */

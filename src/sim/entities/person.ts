@@ -544,6 +544,7 @@ export class Person {
     if (this.waitTimer <= 0) {
       this.opacity = 1;
       this._bladder = 0;
+      w.eco.useToilet(); // their business fills the shared waste tank
       w.toilets.leave(this);
       this.toiletStall = null;
       this.toiletHouse = null;

@@ -205,6 +205,7 @@ export class Cleaner {
     if (this.toiletStall) w.toilets.setProgress(this.toiletStall, 1 - this.waitTimer / this.toiletDuration);
     if (this.waitTimer <= 0) {
       this._bladder = 0;
+      w.eco.useToilet(); // adds to the shared waste tank
       w.toilets.leave(this);
       this.toiletStall = null;
       this.state = 'idle';
