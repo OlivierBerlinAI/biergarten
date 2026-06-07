@@ -390,8 +390,8 @@ export const CLOCK = {
 /** Per-guest behaviour ranges (0..100 scales for thirst/bladder/satisfaction). */
 export const GUEST = {
   /** Money a single guest is willing to spend in total. */
-  walletMin: 10,
-  walletMax: 32.5,
+  walletMin: 15,
+  walletMax: 48.75,
   /** Guests arrive with little thirst; it builds up while they sit. A finished
    *  beer fully quenches it (thirst → 0), so there's no per-beer amount. */
   thirstStartMin: 10,
