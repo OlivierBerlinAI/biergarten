@@ -20,7 +20,7 @@ export class Placement {
     private readonly game: Game,
     private readonly renderer: Renderer,
     private readonly onGuestPick: (id: number) => void,
-    private readonly onStandPick: () => void,
+    private readonly onStandPick: (id: number) => void,
   ) {
     const tool = new paper.Tool();
     tool.onMouseMove = (e: paper.ToolEvent) => this.onMove(e.point);
@@ -109,8 +109,9 @@ export class Placement {
       const p = { x: pt.x, y: pt.y };
       // Not placing: a click might hit a building's "+" button (e.g. add a tap)…
       if (this.game.handleWorldClick(p)) return;
-      // …a pretzel stand, opening its management overlay…
-      if (this.game.stands.at(p)) { this.onStandPick(); return; }
+      // …a pretzel stand, opening its (per-stand) management overlay…
+      const st = this.game.stands.at(p);
+      if (st) { this.onStandPick(st.id); return; }
       // …or a guest, in which case we follow them and open their panel.
       const id = this.nearestGuest(pt);
       if (id !== null) this.onGuestPick(id);

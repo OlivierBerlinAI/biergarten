@@ -7,7 +7,7 @@ import { ARRIVALS, BAR, CLOCK, DELIVERY, DJ, DOGCATCHER, ECONOMY, GUEST, MAX_DOG
 import { GameState, type Outcome } from './economy.js';
 import { Clock } from './clock.js';
 import { Seating } from './seating.js';
-import { Stands } from './stands.js';
+import { Stands, type Stand } from './stands.js';
 import { Toilets, type WcHouse } from './toilets.js';
 import { Tanks } from './tanks.js';
 import { Deco } from './deco.js';
@@ -51,6 +51,10 @@ export interface Aggregates {
   toiletDirt: number;
   moneyPerVisitor: number;
   litter: number;
+  /** Combined pretzel stock across all stands (for the overview). */
+  pretzelStock: number;
+  /** Whether any stand auto-supplies itself (overview badge). */
+  pretzelAuto: boolean;
   time: string;
   salesOpen: boolean;
 }
@@ -84,7 +88,8 @@ export class Game implements World {
 
   private beerTruck: Truck | null = null;
   private kloTruck: Truck | null = null;
-  private pretzelTruck: Truck | null = null;
+  // Pretzel deliveries are tracked per stand (stand.delivery), so several can be
+  // in flight at once — no single shared truck reference here.
 
   ended = false;
   outcome: Outcome | null = null;
@@ -192,9 +197,9 @@ export class Game implements World {
     this.clock.tick();
     if (this.clock.day !== this.lastDay) {
       this.lastDay = this.clock.day;
-      const d = this.eco.newDay();
-      if (d.discarded > 0) this.log('money', `Brezn vom Vortag entsorgt: ${d.discarded} 🥨`);
-      this.autoDeliverPretzels(); // baker's van rolls in (pretzels appear on arrival)
+      const discarded = this.stands.binAll(); // yesterday's pretzels go stale
+      if (discarded > 0) this.log('money', `Brezn vom Vortag entsorgt: ${discarded} 🥨`);
+      this.autoDeliverPretzels(); // each auto-stand's van rolls in (stock on arrival)
       const ad = this.eco.runAdvertising();
       if (ad.spent > 0) this.log('money', `Werbung geschaltet (Ruf +${ad.repGain.toFixed(1)})`, -ad.spent);
     }
@@ -257,7 +262,7 @@ export class Game implements World {
         this.trucks.splice(i, 1);
         if (t === this.beerTruck) this.beerTruck = null;
         if (t === this.kloTruck) this.kloTruck = null;
-        if (t === this.pretzelTruck) this.pretzelTruck = null;
+        if (t.target && t.target.delivery === t) t.target.delivery = null;
       }
     }
 
@@ -309,7 +314,7 @@ export class Game implements World {
 
   /** Food is on offer only when a staffed stand has pretzels in stock. */
   foodAvailable(): boolean {
-    return this.stands.hasSeller() && this.eco.canSellPretzel();
+    return this.stands.anyServable();
   }
 
   /** Drain queued sound effects (the view plays them; CLI ignores). */
@@ -376,7 +381,7 @@ export class Game implements World {
 
     // Demand signals: how many guests want beer vs. a pretzel right now.
     const thirsty = this.people.filter((p) => p.thirst >= GUEST.thirstWantBeer).length;
-    const canPretzel = this.eco.canSellPretzel();
+    const canPretzel = this.stands.list.some((s) => s.stock >= 1);
     const hungry = canPretzel ? this.people.filter((p) => p.hunger >= GUEST.hungerWantPretzel).length : 0;
 
     interface Station { id: string; need: number; make: () => ServiceAssignment }
@@ -388,10 +393,9 @@ export class Game implements World {
         stations.push({ id: `tap-${a.id}-${i}`, need: 2 + q * 6 + thirsty * 0.5, make: () => ({ kind: 'tap', building: a, index }) });
       }
     }
-    if (canPretzel) {
-      for (const st of this.stands.list) {
-        stations.push({ id: `stand-${st.id}`, need: st.queue.length * 6 + hungry * 0.7, make: () => ({ kind: 'stand', stand: st }) });
-      }
+    for (const st of this.stands.list) {
+      if (st.stock < 1) continue; // an empty stand needs no seller
+      stations.push({ id: `stand-${st.id}`, need: st.queue.length * 6 + hungry * 0.7, make: () => ({ kind: 'stand', stand: st }) });
     }
     // Highest-need posts first; stable tie-break keeps things from flapping.
     stations.sort((x, y) => y.need - x.need || (x.id < y.id ? -1 : 1));
@@ -461,38 +465,67 @@ export class Game implements World {
   setPretzelPrice(price: number): void {
     this.eco.setPretzelPrice(price);
   }
-  setPretzelOrderAmount(amount: number): void {
-    this.eco.setPretzelOrderAmount(amount);
+  setPretzelOrderAmount(standId: number, amount: number): void {
+    const s = this.stands.byId(standId);
+    if (s) s.orderAmount = this.eco.clampPretzelOrder(amount);
   }
-  /** Order pretzels from the baker: pay now; the van delivers after ~1–2 h. */
-  orderPretzels(): boolean {
-    if (this.pretzelTruck) return false; // a delivery is already on its way
-    if (this.stands.count === 0) return false; // nowhere to deliver them
-    const amount = this.eco.plannedPretzelOrder();
+
+  /** What a fresh order would actually deliver to this stand (capped by room). */
+  private plannedStandOrder(s: Stand): number {
+    return Math.max(0, Math.min(s.orderAmount, ECONOMY.pretzelCapacity - s.stock));
+  }
+
+  /** Snapshot of one stand's pretzel controls for the management overlay. */
+  standInfo(standId: number): {
+    stock: number; orderAmount: number; planned: number; cost: number; pending: boolean; progress: number; auto: boolean;
+  } | null {
+    const s = this.stands.byId(standId);
+    if (!s) return null;
+    const planned = this.plannedStandOrder(s);
+    return {
+      stock: s.stock,
+      orderAmount: s.orderAmount,
+      planned,
+      cost: this.eco.pretzelOrderCost(planned),
+      pending: !!s.delivery,
+      progress: s.delivery?.arrivalProgress() ?? 0,
+      auto: s.autoDeliver,
+    };
+  }
+
+  /** Order pretzels for one stand: pay now; the van delivers after ~1–2 h. */
+  orderPretzels(standId: number): boolean {
+    const s = this.stands.byId(standId);
+    if (!s || s.delivery) return false; // gone, or a delivery is already inbound
+    const amount = this.plannedStandOrder(s);
     if (amount <= 0) return false;
     const cost = this.eco.pretzelOrderCost(amount);
     if (!this.eco.spend(cost)) return false;
-    this.pretzelTruck = this.spawnPretzelTruck(amount);
+    s.delivery = this.spawnPretzelTruck(s, amount);
     this.play('cheers');
     this.log('money', `Brezn bestellt: ${amount} 🥨 (Lieferung unterwegs)`, -cost);
     return true;
   }
 
-  /** Dawn: if auto-delivery is on, send the baker's van (arrives ~1–2 h later). */
+  /** Dawn: send a van to every auto-supply stand (each arrives ~1–2 h later). */
   private autoDeliverPretzels(): void {
-    if (!this.eco.pretzelAutoDeliver || this.pretzelTruck || this.stands.count === 0) return;
-    const amount = this.eco.plannedPretzelOrder();
-    if (amount <= 0) return;
-    const cost = this.eco.pretzelOrderCost(amount);
-    if (!this.eco.spend(cost)) return; // can't afford today's batch — skip it
-    this.pretzelTruck = this.spawnPretzelTruck(amount);
-    this.log('money', `Brezn-Tageslieferung: ${amount} 🥨 (unterwegs)`, -cost);
+    for (const s of this.stands.list) {
+      if (!s.autoDeliver || s.delivery) continue;
+      const amount = this.plannedStandOrder(s);
+      if (amount <= 0) continue;
+      const cost = this.eco.pretzelOrderCost(amount);
+      if (!this.eco.spend(cost)) continue; // can't afford this stand's batch — skip
+      s.delivery = this.spawnPretzelTruck(s, amount);
+      this.log('money', `Brezn-Tageslieferung: ${amount} 🥨 (unterwegs)`, -cost);
+    }
   }
-  /** Toggle the daily auto-delivery of fresh pretzels. */
-  togglePretzelAutoDeliver(): boolean {
-    const on = this.eco.toggleAutoDeliver();
-    this.log('money', `Brezn-Auto-Lieferung ${on ? 'an' : 'aus'}`);
-    return on;
+  /** Toggle one stand's daily auto-supply of fresh pretzels. */
+  togglePretzelAutoDeliver(standId: number): boolean {
+    const s = this.stands.byId(standId);
+    if (!s) return false;
+    s.autoDeliver = !s.autoDeliver;
+    this.log('money', `Brezn-Auto-Lieferung ${s.autoDeliver ? 'an' : 'aus'}`);
+    return s.autoDeliver;
   }
 
   /** Toggle whether gardeners replant dead decorations for money. */
@@ -514,12 +547,6 @@ export class Game implements World {
   kloProgress(): number {
     return this.kloTruck ? this.kloTruck.arrivalProgress() : 0;
   }
-  pretzelOrderPending(): boolean {
-    return !!this.pretzelTruck;
-  }
-  pretzelOrderProgress(): number {
-    return this.pretzelTruck ? this.pretzelTruck.arrivalProgress() : 0;
-  }
 
   private spawnTruck(kind: 'beer' | 'klo', delaySeconds: number, amount: number): Truck {
     const t = new Truck(this.nextId++, kind, delaySeconds, amount, this.tankPark(kind));
@@ -527,18 +554,16 @@ export class Game implements World {
     return t;
   }
 
-  private spawnPretzelTruck(amount: number): Truck {
+  private spawnPretzelTruck(stand: Stand, amount: number): Truck {
     const secs = (DELIVERY.pretzelMinHours + Math.random() * (DELIVERY.pretzelMaxHours - DELIVERY.pretzelMinHours)) * CLOCK.secondsPerHour;
-    const t = new Truck(this.nextId++, 'pretzel', secs, amount, this.pretzelPark());
+    const t = new Truck(this.nextId++, 'pretzel', secs, amount, this.pretzelPark(stand), stand);
     this.trucks.push(t);
     return t;
   }
 
-  /** Where the baker's van parks: just below the first stand (fallback: depot). */
-  private pretzelPark(): Vec {
-    const st = this.stands.list[0];
-    if (st) return { x: st.pos.x, y: st.pos.y + 36 };
-    return { x: PLACES.bar.x - 120, y: PLACES.bar.y + 72 };
+  /** Where the baker's van parks: just below the stand it's restocking. */
+  private pretzelPark(stand: Stand): Vec {
+    return { x: stand.pos.x, y: stand.pos.y + 36 };
   }
 
   /** Where a delivery truck parks: at the first tank of the matching kind. */
@@ -901,6 +926,8 @@ export class Game implements World {
       toiletDirt: this.toilets.combinedDirt(),
       moneyPerVisitor: this.eco.moneyPerVisitor(),
       litter: this.litter.count,
+      pretzelStock: this.stands.totalStock(),
+      pretzelAuto: this.stands.anyAutoDeliver(),
       time: this.clock.label(),
       salesOpen: this.clock.isOpenForBusiness(),
     };

@@ -1,11 +1,14 @@
 // Pretzel stands placed on the field. Each stand is staffed by a pretzel seller
-// and has its own queue — guests line up like at the bar or the WC. The pretzel
-// stock, price and ordering live in the economy (one shared supply).
+// and has its own queue — guests line up like at the bar or the WC. Each stand
+// also carries its OWN pretzel stock, order amount, auto-supply toggle and any
+// pending delivery; the price stays shared (in the economy).
 // No rendering — the view reads `list`, queue lengths and serve progress.
 
+import { ECONOMY } from '../config.js';
 import { dist, type Vec } from './vec.js';
 import type { Person } from './entities/person.js';
 import type { ServiceStaff } from './entities/service.js';
+import type { Truck } from './entities/truck.js';
 
 /** Rough radius of a stand, for placement/overlap checks. */
 export const STAND_FOOTPRINT = 38;
@@ -17,6 +20,14 @@ export interface Stand {
   queue: Person[];
   /** The Servicekraft working this stand right now (null = unstaffed). */
   seller: ServiceStaff | null;
+  /** Fresh pretzels in stock at this stand (binned overnight). */
+  stock: number;
+  /** How many this stand's order button / auto-supply fetches. */
+  orderAmount: number;
+  /** When on, this stand restocks itself each morning. */
+  autoDeliver: boolean;
+  /** The baker's van currently bringing this stand a batch (null = none). */
+  delivery: Truck | null;
 }
 
 const FRONT_OFFSET_Y = 46;
@@ -27,7 +38,16 @@ export class Stands {
   private nextId = 1;
 
   add(pos: Vec): Stand {
-    const s: Stand = { id: this.nextId++, pos: { ...pos }, queue: [], seller: null };
+    const s: Stand = {
+      id: this.nextId++,
+      pos: { ...pos },
+      queue: [],
+      seller: null,
+      stock: 0,
+      orderAmount: ECONOMY.pretzelOrderDefault,
+      autoDeliver: false,
+      delivery: null,
+    };
     this.list.push(s);
     return s;
   }
@@ -36,9 +56,43 @@ export class Stands {
     return this.list.length;
   }
 
+  byId(id: number): Stand | null {
+    return this.list.find((s) => s.id === id) ?? null;
+  }
+
+  /** Combined pretzel stock across every stand (for the overview). */
+  totalStock(): number {
+    return this.list.reduce((sum, s) => sum + s.stock, 0);
+  }
+
+  /** Whether any stand currently auto-supplies itself (for the overview badge). */
+  anyAutoDeliver(): boolean {
+    return this.list.some((s) => s.autoDeliver);
+  }
+
+  /** At least one stand is staffed AND has pretzels to sell. */
+  anyServable(): boolean {
+    return this.list.some((s) => s.seller !== null && s.stock >= 1);
+  }
+
   /** At least one stand currently has a seller standing at it. */
   hasSeller(): boolean {
     return this.list.some((s) => s.seller !== null);
+  }
+
+  /** Bin every stand's leftover stock at day's end; returns the total binned. */
+  binAll(): number {
+    let discarded = 0;
+    for (const s of this.list) {
+      discarded += s.stock;
+      s.stock = 0;
+    }
+    return discarded;
+  }
+
+  /** Which stand a guest is queued at (null if none). */
+  standOf(p: Person): Stand | null {
+    return this.list.find((s) => s.queue.includes(p)) ?? null;
   }
 
   isClear(p: Vec, radius: number): boolean {
@@ -71,12 +125,12 @@ export class Stands {
 
   // --- queueing (mirrors the bar) ------------------------------------------
 
-  /** Join the nearest staffed stand's queue. False if none has a seller. */
+  /** Join the nearest staffed stand that still has pretzels. False if none. */
   join(p: Person): boolean {
     let best: Stand | null = null;
     let bestDist = Infinity;
     for (const s of this.list) {
-      if (!s.seller) continue;
+      if (!s.seller || s.stock < 1) continue;
       const d = dist(s.pos, p.pos);
       if (d < bestDist) {
         bestDist = d;
@@ -131,10 +185,6 @@ export class Stands {
   }
 
   // --- internals ------------------------------------------------------------
-
-  private standOf(p: Person): Stand | null {
-    return this.list.find((s) => s.queue.includes(p)) ?? null;
-  }
 
   private locate(p: Person): { s: Stand; depth: number } | null {
     for (const s of this.list) {

@@ -44,7 +44,10 @@ window.onload = (): void => {
       guests.openFor(id);
       paper.view.zoom = Math.max(baseZoom, Math.min(baseZoom * 8, baseZoom * 2.6));
     },
-    () => document.getElementById('pretzelwin')?.classList.remove('hidden'),
+    (id) => {
+      controls.selectStand(id);
+      document.getElementById('pretzelwin')?.classList.remove('hidden');
+    },
   );
 
   const actions: ViewActions = {

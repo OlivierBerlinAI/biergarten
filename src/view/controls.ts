@@ -34,6 +34,8 @@ export class Controls {
   private draggingPretzelPrice = false;
   private draggingPretzelOrder = false;
   private draggingAd = false;
+  /** Which stand the pretzel overlay currently manages (null = none open). */
+  private selectedStandId: number | null = null;
   /** Collapse the build menu (assigned in setupBuildMenu); used by Esc. */
   private closeBuildMenu: () => void = () => {};
 
@@ -121,12 +123,13 @@ export class Controls {
     this.onClick('btn-hire-dj', () => { sound.init(); game.hireDj(); });
     this.onClick('btn-fire-dj', () => { sound.init(); game.fireDj(); });
 
-    this.onClick('btn-pretzel-order', () => { sound.init(); game.orderPretzels(); });
-    const autoBtn = this.el('btn-pretzel-auto');
+    this.onClick('btn-pretzel-order', () => {
+      sound.init();
+      if (this.selectedStandId !== null) game.orderPretzels(this.selectedStandId);
+    });
     this.onClick('btn-pretzel-auto', () => {
       sound.init();
-      const on = game.togglePretzelAutoDeliver();
-      if (autoBtn) autoBtn.textContent = `🔁 Auto-Lieferung: ${on ? 'an' : 'aus'}`;
+      if (this.selectedStandId !== null) game.togglePretzelAutoDeliver(this.selectedStandId);
     });
 
     this.onClick('btn-hire-service', () => { sound.init(); game.hireService(); });
@@ -155,7 +158,9 @@ export class Controls {
     }
     this.pretzelOrderSlider = this.el('pretzel-order-slider') as HTMLInputElement | null;
     if (this.pretzelOrderSlider) {
-      const apply = (): void => game.setPretzelOrderAmount(parseFloat(this.pretzelOrderSlider!.value));
+      const apply = (): void => {
+        if (this.selectedStandId !== null) game.setPretzelOrderAmount(this.selectedStandId, parseFloat(this.pretzelOrderSlider!.value));
+      };
       this.pretzelOrderSlider.addEventListener('input', () => { this.draggingPretzelOrder = true; apply(); });
       this.pretzelOrderSlider.addEventListener('change', () => { this.draggingPretzelOrder = false; apply(); });
     }
@@ -165,6 +170,11 @@ export class Controls {
       this.adSlider.addEventListener('input', () => { this.draggingAd = true; apply(); });
       this.adSlider.addEventListener('change', () => { this.draggingAd = false; apply(); });
     }
+  }
+
+  /** Point the pretzel overlay at a specific stand (called when one is clicked). */
+  selectStand(id: number): void {
+    this.selectedStandId = id;
   }
 
   /** Wire the two-level build menu: category row → item row. */
@@ -277,21 +287,27 @@ export class Controls {
       const v = String(eco.pretzelPrice);
       if (this.pretzelPriceSlider.value !== v) this.pretzelPriceSlider.value = v;
     }
-    this.text('pretzel-order-val', String(eco.pretzelOrderAmount));
-    if (this.pretzelOrderSlider && !this.draggingPretzelOrder) {
-      const v = String(eco.pretzelOrderAmount);
+    // The pretzel order/auto controls manage the clicked stand (price is shared).
+    const stand = this.selectedStandId !== null ? this.game.standInfo(this.selectedStandId) : null;
+    this.text('pretzel-stand-stock', stand ? `${stand.stock} 🥨` : '–');
+    this.text('pretzel-order-val', String(stand?.orderAmount ?? 0));
+    if (this.pretzelOrderSlider && !this.draggingPretzelOrder && stand) {
+      const v = String(stand.orderAmount);
       if (this.pretzelOrderSlider.value !== v) this.pretzelOrderSlider.value = v;
     }
-    const pretzelOrder = eco.plannedPretzelOrder();
-    const pretzelCost = eco.pretzelOrderCost(pretzelOrder);
-    if (this.game.pretzelOrderPending()) {
-      const pct = Math.round(this.game.pretzelOrderProgress() * 100);
+    if (!stand) {
+      this.label('btn-pretzel-order', '🥨 Brezn bestellen');
+      this.disabled('btn-pretzel-order', true);
+    } else if (stand.pending) {
+      const pct = Math.round(stand.progress * 100);
       this.label('btn-pretzel-order', `🥨 Lieferung unterwegs… ${pct}%`);
       this.disabled('btn-pretzel-order', true);
     } else {
-      this.label('btn-pretzel-order', `🥨 Brezn bestellen (${pretzelOrder} · ${pretzelCost} €)`);
-      this.disabled('btn-pretzel-order', pretzelOrder <= 0 || !eco.canAfford(pretzelCost));
+      this.label('btn-pretzel-order', `🥨 Brezn bestellen (${stand.planned} · ${stand.cost} €)`);
+      this.disabled('btn-pretzel-order', stand.planned <= 0 || !eco.canAfford(stand.cost));
     }
+    this.label('btn-pretzel-auto', `🔁 Auto-Lieferung: ${stand?.auto ? 'an' : 'aus'}`);
+    this.disabled('btn-pretzel-auto', !stand);
 
     this.text('cnt-service', String(eco.service));
     this.text('cost-service', `einmalig ${eco.serviceHireCost()} € · Lohn ${eco.serviceWage()} €`);

@@ -609,8 +609,8 @@ export class Person {
       this.standServeTimer = 0;
     }
     const atSpot = this.moveTo(w.stands.positionOf(this));
-    if (!w.eco.canSellPretzel()) {
-      w.stands.leave(this); // ran out while we were in line
+    if ((w.stands.standOf(this)?.stock ?? 0) < 1) {
+      w.stands.leave(this); // this stand ran out while we were in line
       this.standDisappointed(w);
       return;
     }
@@ -625,9 +625,11 @@ export class Person {
   }
 
   private buyPretzel(w: World): void {
-    if (w.eco.canSellPretzel() && this.wallet_ >= w.eco.pretzelPrice) {
+    const stand = w.stands.standOf(this);
+    if (stand && stand.stock >= 1 && this.wallet_ >= w.eco.pretzelPrice) {
       const price = w.eco.pretzelPrice;
-      w.eco.sellPretzel();
+      stand.stock -= 1;
+      w.eco.recordPretzelSale();
       this.wallet_ -= price;
       this._spent += price;
       this.pretzelVisible = true;

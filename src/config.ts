@@ -323,9 +323,9 @@ export const ECONOMY = {
   expectedPretzelPrice: 2.5,
   /** Baker wholesale: what one pretzel costs the garden when restocking. */
   pretzelWholesale: 1.0,
-  /** How many fresh pretzels the stock can hold (good for one day only). */
-  pretzelCapacity: 60,
-  /** Default amount the pretzel-order slider starts at. */
+  /** How many fresh pretzels a single stand can hold (good for one day only). */
+  pretzelCapacity: 30,
+  /** Default amount the pretzel-order slider starts at (per stand). */
   pretzelOrderDefault: 30,
   /** Cost to build a pretzel stand (placed like a table). */
   pretzelStandCost: 40,

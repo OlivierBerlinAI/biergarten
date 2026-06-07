@@ -17,7 +17,7 @@ export class Hud {
     this.text('stat-beers', eco.beersSold);
     this.text('stat-permoney', `${agg.moneyPerVisitor.toFixed(2)} €`);
     this.text('stat-litter', agg.litter);
-    this.text('stat-pretzels', `${eco.pretzelStock}${eco.pretzelAutoDeliver ? ' 🔁' : ''}`);
+    this.text('stat-pretzels', `${agg.pretzelStock}${agg.pretzelAuto ? ' 🔁' : ''}`);
 
     this.bar('beer', eco.beer.current, eco.beer.capacity, `${Math.round(eco.beer.current)}/${eco.beer.capacity}`);
     this.bar('toilet', eco.toilet.current, eco.toilet.capacity, `${Math.round(eco.toilet.current)}/${eco.toilet.capacity}`);

@@ -50,14 +50,10 @@ export class GameState {
   wagePayments = 0;
 
   // --- pretzels (food) -----------------------------------------------------
-  /** Fresh pretzels in stock today. Goes stale (binned) at the next day. */
-  pretzelStock = 0;
+  // Stock, order amount and auto-supply now live per stand (see stands.ts).
+  // The economy only owns the shared price and the sale bookkeeping.
   /** Price guests pay for a pretzel (set by the slider). */
   pretzelPrice: number = ECONOMY.pretzelPrice.start;
-  /** How many pretzels the "Brezn bestellen" button (and auto-delivery) order. */
-  pretzelOrderAmount: number = ECONOMY.pretzelOrderDefault;
-  /** When on, a fresh batch (pretzelOrderAmount) is delivered each new day. */
-  pretzelAutoDeliver = false;
 
   /** Daily advertising spend (set by the slider); buys a reputation bump at dawn. */
   adBudget: number = ECONOMY.adBudget.start;
@@ -126,38 +122,21 @@ export class GameState {
     this.pretzelPrice = Math.max(ECONOMY.pretzelPrice.min, Math.min(ECONOMY.pretzelPrice.max, price));
   }
 
-  setPretzelOrderAmount(n: number): void {
-    this.pretzelOrderAmount = Math.max(0, Math.min(ECONOMY.pretzelCapacity, Math.round(n)));
+  /** Clamp a per-stand order amount to [0, one stand's capacity]. */
+  clampPretzelOrder(n: number): number {
+    return Math.max(0, Math.min(ECONOMY.pretzelCapacity, Math.round(n)));
   }
 
-  /** Whole pretzels the next order will deliver (limited by remaining room). */
-  plannedPretzelOrder(): number {
-    return Math.min(this.pretzelOrderAmount, ECONOMY.pretzelCapacity - this.pretzelStock);
-  }
-
-  /** Baker cost of an order of `amount` pretzels (defaults to the planned order). */
-  pretzelOrderCost(amount: number = this.plannedPretzelOrder()): number {
+  /** Baker cost of an order of `amount` pretzels. */
+  pretzelOrderCost(amount: number): number {
     return Math.ceil(Math.max(0, amount) * ECONOMY.pretzelWholesale);
   }
 
-  /** Add delivered pretzels to the stock (capped at capacity). */
-  addPretzels(n: number): void {
-    this.pretzelStock = Math.min(ECONOMY.pretzelCapacity, this.pretzelStock + n);
-  }
-
-  /** A stand can hand out a pretzel only if some are in stock. */
-  canSellPretzel(): boolean {
-    return this.pretzelStock >= 1;
-  }
-
-  /** Sell one pretzel at the current price. Returns false if sold out. */
-  sellPretzel(): boolean {
-    if (!this.canSellPretzel()) return false;
-    this.pretzelStock -= 1;
+  /** Book one pretzel sale at the current price (caller decremented the stand). */
+  recordPretzelSale(): void {
     this.money += this.pretzelPrice;
     this.totalEarned += this.pretzelPrice;
     this.pretzelsSold += 1;
-    return true;
   }
 
   pretzelStandCost(): number {
@@ -196,23 +175,6 @@ export class GameState {
     const repGain = Math.max(0, Math.min(100 - this.reputation, spend * ECONOMY.adRepPerEuro));
     this.adBonus += repGain;
     return { spent: spend, repGain };
-  }
-
-  /** Flip the daily auto-delivery on/off; returns the new state. */
-  toggleAutoDeliver(): boolean {
-    this.pretzelAutoDeliver = !this.pretzelAutoDeliver;
-    return this.pretzelAutoDeliver;
-  }
-
-  /**
-   * A new in-game day begins: yesterday's pretzels are stale and get binned.
-   * The fresh batch (auto-delivery) is no longer instant — Game sends the
-   * baker's van, so the stock only refills once it arrives.
-   */
-  newDay(): { discarded: number } {
-    const discarded = this.pretzelStock;
-    this.pretzelStock = 0;
-    return { discarded };
   }
 
   // --- toilet --------------------------------------------------------------

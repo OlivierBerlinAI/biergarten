@@ -3,8 +3,9 @@
 // at the bar / toilet and services it gradually, then drives off.
 
 import { stepToward, dist, type Vec } from '../vec.js';
-import { DELIVERY, WORLD } from '../../config.js';
+import { DELIVERY, ECONOMY, WORLD } from '../../config.js';
 import type { World } from '../world.js';
+import type { Stand } from '../stands.js';
 
 export type TruckKind = 'beer' | 'klo' | 'pretzel';
 type Phase = 'enroute' | 'arriving' | 'servicing' | 'leaving';
@@ -24,14 +25,17 @@ export class Truck {
   private readonly speed: number;
   private serviceTimer: number;
   private readonly serviceTotal: number;
-  private readonly amount: number; // beer litres to deliver
+  private readonly amount: number; // beer litres / pretzels to deliver
+  /** The stand a pretzel delivery refills (null for beer/klo). */
+  readonly target: Stand | null;
   private delivered = 0;
   private drainRate = 0;
 
-  constructor(id: number, kind: TruckKind, delaySeconds: number, amount: number, park: Vec) {
+  constructor(id: number, kind: TruckKind, delaySeconds: number, amount: number, park: Vec, target: Stand | null = null) {
     this.id = id;
     this.kind = kind;
     this.amount = amount;
+    this.target = target;
 
     const driveIn = DELIVERY.driveInSeconds * 60;
     const total = Math.max(driveIn + 60, delaySeconds * 60);
@@ -91,7 +95,9 @@ export class Truck {
         // pretzels arrive as a single batch once the van finishes unloading.
         if (--this.serviceTimer <= 0) {
           if (this.kind === 'beer') w.eco.addBeer(this.amount - this.delivered); // rounding remainder
-          else if (this.kind === 'pretzel') w.eco.addPretzels(this.amount);
+          else if (this.kind === 'pretzel' && this.target) {
+            this.target.stock = Math.min(ECONOMY.pretzelCapacity, this.target.stock + this.amount);
+          }
           this.facing = 1;
           this.phase = 'leaving';
         }
