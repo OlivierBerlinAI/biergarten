@@ -189,7 +189,8 @@ export class GameState {
   }
 
   klowagenCost(): number {
-    return ECONOMY.klowagenCost;
+    const tanks = Math.round(this.toilet.capacity / ECONOMY.wasteTankUnit);
+    return tanks * ECONOMY.klowagenPerTank;
   }
 
   beerTankCost(): number {

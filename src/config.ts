@@ -317,8 +317,8 @@ export const ECONOMY = {
   wasteTankCost: 150,
   /** Default amount the restock slider starts at. */
   restockDefault: 40,
-  /** Flat cost to call the toilet truck (empties the waste tank). */
-  klowagenCost: 100,
+  /** Cost to call the toilet truck, charged per placed waste tank it empties. */
+  klowagenPerTank: 20,
   /** Cost to buy a new (empty) bench table. */
   tableCost: 70,
   /** Cost to buy a bench (adds 4 seats to a table that has a free bench slot). */
