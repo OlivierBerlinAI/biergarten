@@ -4,6 +4,7 @@
 
 import type { SoundEngine } from './sound.js';
 import type { Game, PlaceKind } from '../sim/game.js';
+import { ECONOMY } from '../config.js';
 
 /** Frontend-only actions the controls drive (placement + speed). */
 export interface ViewActions {
@@ -291,9 +292,14 @@ export class Controls {
     const stand = this.selectedStandId !== null ? this.game.standInfo(this.selectedStandId) : null;
     this.text('pretzel-stand-stock', stand ? `${stand.stock} 🥨` : '–');
     this.text('pretzel-order-val', String(stand?.orderAmount ?? 0));
-    if (this.pretzelOrderSlider && !this.draggingPretzelOrder && stand) {
-      const v = String(stand.orderAmount);
-      if (this.pretzelOrderSlider.value !== v) this.pretzelOrderSlider.value = v;
+    if (this.pretzelOrderSlider) {
+      // Keep the slider's ceiling in sync with a stand's capacity (config-driven).
+      const max = String(ECONOMY.pretzelCapacity);
+      if (this.pretzelOrderSlider.max !== max) this.pretzelOrderSlider.max = max;
+      if (!this.draggingPretzelOrder && stand) {
+        const v = String(stand.orderAmount);
+        if (this.pretzelOrderSlider.value !== v) this.pretzelOrderSlider.value = v;
+      }
     }
     if (!stand) {
       this.label('btn-pretzel-order', '🥨 Brezn bestellen');
