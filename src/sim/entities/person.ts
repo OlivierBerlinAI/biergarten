@@ -25,6 +25,7 @@ export type PersonState =
   | 'goSit'
   | 'chilling'
   | 'toStand'
+  | 'carryPretzel'
   | 'eating'
   | 'fetchTowel'
   | 'leaving';
@@ -37,6 +38,7 @@ const MOVING_STATES: ReadonlySet<PersonState> = new Set<PersonState>([
   'toSeat',
   'toToilet',
   'toStand',
+  'carryPretzel',
   'goSit',
   'fetchTowel',
   'leaving',
@@ -62,6 +64,7 @@ const STATUS_LABEL: Record<PersonState, string> = {
   goSit: 'geht zurück',
   chilling: 'entspannt',
   toStand: 'holt sich eine Brezn',
+  carryPretzel: 'trägt die Brezn zum Platz',
   eating: 'isst eine Brezn',
   fetchTowel: 'holt Handtuch',
   leaving: 'geht',
@@ -278,6 +281,7 @@ export class Person {
       case 'goSit': this.goSit(w); break;
       case 'chilling': this.chilling(w); break;
       case 'toStand': this.toStand(w); break;
+      case 'carryPretzel': this.carryPretzel(w); break;
       case 'eating': this.eating(w); break;
       case 'fetchTowel': this.fetchTowel(w); break;
       case 'leaving': alive = this.leaving(w); break;
@@ -630,10 +634,11 @@ export class Person {
       // Like the beer, the pretzel price is judged against what guests expect.
       const moodVsExpected = (ECONOMY.expectedPretzelPrice - price) * GUEST.satPerEuroVsExpectedPretzel;
       this.changeSat(w, this._satisfaction + moodVsExpected, 'Brezn bezahlt');
-      w.stands.leave(this); // free the counter — they step aside to eat
+      w.stands.leave(this); // free the counter — they carry the Brezn back to their seat
       this.eatDuration = Math.floor(rand(GUEST.eatMin, GUEST.eatMax));
       this.eatTimer = this.eatDuration;
-      this.state = 'eating';
+      // With a seat they take the Brezn back and eat it there; otherwise eat on the spot.
+      this.state = this.seat ? 'carryPretzel' : 'eating';
       w.play('cheers');
     } else {
       w.stands.leave(this);
@@ -648,6 +653,11 @@ export class Person {
       this.pretzelDisappointed = true;
     }
     this.backToSeat();
+  }
+
+  /** Walk back to the reserved seat carrying the Brezn, then settle down to eat. */
+  private carryPretzel(w: World): void {
+    if (this.moveTo(w.seating.seatPoint(this.seat!))) this.state = 'eating';
   }
 
   private eating(w: World): void {
