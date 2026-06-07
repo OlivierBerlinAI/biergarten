@@ -110,8 +110,8 @@ export const STAFF = {
   cleanerWage: 3, // per wage interval
   gardenerHire: 18,
   gardenerWage: 3, // per wage interval
-  djHire: 20, // one-time hire (via the Personal panel)
-  djWage: 4, // per wage interval
+  djHire: 100, // one-time hire (via the Personal panel)
+  djWage: 20, // per wage interval (≈ one in-game hour)
   /** Frames between wage payments — once per in-game hour (20s × 60fps). */
   wageIntervalFrames: 1200,
   /** Bartender pour time per beer (frames) — slower bartenders = longer queues. */
