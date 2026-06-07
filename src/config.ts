@@ -314,7 +314,7 @@ export const ECONOMY = {
   wasteTankUnit: 40,
   /** Cost to place another beer / waste tank. */
   beerTankCost: 130,
-  wasteTankCost: 50,
+  wasteTankCost: 150,
   /** Default amount the restock slider starts at. */
   restockDefault: 40,
   /** Flat cost to call the toilet truck (empties the waste tank). */
