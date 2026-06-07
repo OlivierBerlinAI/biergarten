@@ -304,7 +304,7 @@ export const REPUTATION = {
 /** Economy knobs. All money values are in euros; 1 beer = 1 litre. */
 export const ECONOMY = {
   /** Beer price the player sets (slider bounds), in euros. */
-  price: { min: 1, max: 20, start: 4, step: 0.5 },
+  price: { min: 1, max: 20, start: 8, step: 0.5 },
   /** What guests consider a "fair" price — they compare against this (mood is
    *  ±0 here; cheaper pleases, dearer annoys). */
   expectedPrice: 8,
