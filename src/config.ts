@@ -313,18 +313,18 @@ export const ECONOMY = {
   /** Litres of waste capacity each placed waste tank adds (shared pool). */
   wasteTankUnit: 40,
   /** Cost to place another beer / waste tank. */
-  beerTankCost: 70,
+  beerTankCost: 130,
   wasteTankCost: 50,
   /** Default amount the restock slider starts at. */
   restockDefault: 40,
   /** Flat cost to call the toilet truck (empties the waste tank). */
-  klowagenCost: 15,
+  klowagenCost: 100,
   /** Cost to buy a new (empty) bench table. */
-  tableCost: 30,
+  tableCost: 100,
   /** Cost to buy a bench (adds 3 seats to a table that has a free bench slot). */
   benchCost: 12,
   /** Cost to buy a standing table (comes with 4 stools). */
-  standCost: 22,
+  standCost: 55,
 
   // --- pretzels (food) -----------------------------------------------------
   /** Pretzel price the player sets (slider bounds), in euros. */
@@ -338,22 +338,22 @@ export const ECONOMY = {
   /** Default amount the pretzel-order slider starts at (per stand). */
   pretzelOrderDefault: 30,
   /** Cost to build a pretzel stand (placed like a table). */
-  pretzelStandCost: 40,
+  pretzelStandCost: 250,
   /** Cost to build a new Ausschank (comes with one tap). */
-  ausschankCost: 80,
+  ausschankCost: 500,
   /** Cost to add a tap to an existing Ausschank. */
-  tapCost: 45,
+  tapCost: 100,
   /** Cost to build a new WC house (comes with one toilet). */
-  wcHouseCost: 60,
+  wcHouseCost: 600,
   /** Cost to add a toilet to an existing WC house. */
-  stallCost: 35,
+  stallCost: 200,
   /** Cost to place a bush / flower / tree / DJ. */
-  bushCost: 15,
-  flowerCost: 10,
-  treeCost: 20,
-  djCost: 90,
+  bushCost: 30,
+  flowerCost: 20,
+  treeCost: 150,
+  djCost: 250,
   /** Cost to lay one path tile. */
-  pathCost: 1,
+  pathCost: 10,
   /** Daily advertising budget the player can set (slider bounds), in euros. */
   adBudget: { min: 0, max: 200, start: 0, step: 10 },
   /** Reputation points gained per euro of advertising spent at day start. */
