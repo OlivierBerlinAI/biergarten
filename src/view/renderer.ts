@@ -47,8 +47,11 @@ export class Renderer {
   private readonly towelsG = new paper.Group();
   private readonly litterG = new paper.Group();
   private readonly entitiesG = new paper.Group();
+  // Parasols are drawn last so they sit ABOVE the guests (declared after
+  // entitiesG → higher z-order). Their lifecycle is tied to the table units.
+  private readonly umbrellasG = new paper.Group();
 
-  private readonly units = new Map<number, { g: paper.Group; benches: number }>();
+  private readonly units = new Map<number, { g: paper.Group; umbrella: paper.Group | null; benches: number }>();
   private readonly pathSprites = new Map<number, paper.Group>();
   private readonly standSprites = new Map<number, { g: paper.Group; gauge: TapGauge; stock: DirtBar; auto: paper.PointText }>();
   private readonly service = new Map<number, SimpleSprite>();
@@ -588,23 +591,32 @@ export class Renderer {
       live.add(u.id);
       const existing = this.units.get(u.id);
       if (!existing) {
-        const g = this.buildUnit(u);
-        this.units.set(u.id, { g, benches: u.benches });
+        this.units.set(u.id, this.buildUnit(u));
       } else if (existing.benches !== u.benches) {
         existing.g.remove();
-        const g = this.buildUnit(u);
-        this.units.set(u.id, { g, benches: u.benches });
+        existing.umbrella?.remove();
+        this.units.set(u.id, this.buildUnit(u));
       }
     }
-    for (const [id, s] of this.units) if (!live.has(id)) { s.g.remove(); this.units.delete(id); }
+    for (const [id, s] of this.units) {
+      if (!live.has(id)) { s.g.remove(); s.umbrella?.remove(); this.units.delete(id); }
+    }
   }
 
-  private buildUnit(u: Unit): paper.Group {
+  private buildUnit(u: Unit): { g: paper.Group; umbrella: paper.Group | null; benches: number } {
     const g = new paper.Group();
     this.tablesG.addChild(g);
-    if (u.kind === 'stand') this.drawStand(g, u);
-    else this.drawBenchTable(g, u);
-    return g;
+    let umbrella: paper.Group | null = null;
+    if (u.kind === 'stand') {
+      this.drawStand(g, u);
+    } else {
+      this.drawBenchTable(g, u);
+      // Drawn into the top-most group so the parasol covers the guests beneath it.
+      umbrella = new paper.Group();
+      this.umbrellasG.addChild(umbrella);
+      this.drawUmbrella(umbrella, u.center.x, u.center.y - 4);
+    }
+    return { g, umbrella, benches: u.benches };
   }
 
   private drawBenchTable(g: paper.Group, u: Unit): void {
@@ -616,8 +628,12 @@ export class Renderer {
     top.strokeColor = col('#8a6a3a');
     top.strokeWidth = 2;
     g.addChild(top);
-    // umbrella
-    const cx = x, cy = y - 4, R = 56;
+  }
+
+  /** The parasol canopy. Drawn into its own top-most group so it floats above
+   *  the guests sitting at the table. */
+  private drawUmbrella(g: paper.Group, cx: number, cy: number): void {
+    const R = 56;
     for (let s = 0; s < 8; s++) {
       const a0 = (s / 8) * Math.PI * 2;
       const a1 = ((s + 1) / 8) * Math.PI * 2;
