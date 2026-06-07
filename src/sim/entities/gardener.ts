@@ -7,7 +7,7 @@ import { WORLD, DECO, PATH } from '../../config.js';
 import type { DecoItem } from '../deco.js';
 import type { World } from '../world.js';
 
-type GardenerState = 'idle' | 'toPlant' | 'watering' | 'replacing' | 'goHome';
+type GardenerState = 'idle' | 'roaming' | 'toPlant' | 'watering' | 'replacing' | 'goHome';
 
 export class Gardener {
   readonly id: number;
@@ -52,7 +52,11 @@ export class Gardener {
         const thirsty = w.deco.thirstiest();
         const dead = !thirsty && w.deco.autoReplace ? w.deco.firstDead() : null;
         const t = thirsty ?? (dead && w.eco.canAfford(w.eco.plantCost(dead.kind)) ? dead : null);
-        if (t) {
+        if (t && rand(0, 1) < DECO.gardenerWanderChance) {
+          // Now and then, take a detour to a random spot before tending a plant.
+          this.wander = Gardener.randomSpot();
+          this.state = 'roaming';
+        } else if (t) {
           this.target = t;
           this.state = 'toPlant';
         } else if (this.moveTo(this.wander, this.speed * 0.5)) {
@@ -60,6 +64,9 @@ export class Gardener {
         }
         break;
       }
+      case 'roaming':
+        if (this.moveTo(this.wander, this.speed)) this.state = 'idle';
+        break;
       case 'toPlant': {
         const t = this.target;
         if (!t || !w.deco.list.includes(t)) {

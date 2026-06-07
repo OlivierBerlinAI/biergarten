@@ -183,6 +183,9 @@ export const DECO = {
   /** Frames a gardener spends tearing out a dead plant and planting a fresh one
    *  (only when the Deko auto-replace mode is on). */
   replantFrames: 150,
+  /** Chance, each time a gardener picks a plant to tend, that it instead strolls
+   *  to a random spot first — so they don't all march straight at the same plant. */
+  gardenerWanderChance: 0.1,
   /**
    * A plant only "asks" for water once its condition drops below its own
    * threshold, rolled per plant in this range so they don't all wilt in sync.
