@@ -396,8 +396,9 @@ export const GUEST = {
    *  beer fully quenches it (thirst → 0), so there's no per-beer amount. */
   thirstStartMin: 10,
   thirstStartMax: 35,
-  /** Above this thirst a seated guest gets up for (another) beer. */
-  thirstWantBeer: 30,
+  /** Above this thirst a seated guest gets up for (another) beer. Kept low so a
+   *  guest doesn't idle long after finishing one (their thirst resets to 0). */
+  thirstWantBeer: 15,
   /** Passive thirst gained per frame while not drinking. Each guest rolls their
    *  own rate in this range, so some get thirsty much faster than others. */
   thirstPerFrameMin: 0.01,
