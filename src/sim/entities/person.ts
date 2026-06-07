@@ -391,7 +391,7 @@ export class Person {
       this._spent += price;
       this.mugVisible = true;
       this.beerLevel = 1;
-      w.log('money', `#${this.id} kauft ein Bier (${price.toFixed(2)} €)`, price, this.id);
+      w.log('money', `${this.name} kauft ein Bier (${price.toFixed(2)} €)`, price, this.id);
       // Mood depends on how far the price strays from what guests expect to pay:
       // a bargain pleases (positive delta), a rip-off annoys (negative delta).
       const moodVsExpected = (ECONOMY.expectedPrice - price) * GUEST.satPerEuroVsExpected;
@@ -630,6 +630,7 @@ export class Person {
       const price = w.eco.pretzelPrice;
       stand.stock -= 1;
       w.eco.recordPretzelSale();
+      w.log('money', `${this.name} kauft eine Brezn (${price.toFixed(2)} €)`, price, this.id);
       this.wallet_ -= price;
       this._spent += price;
       this.pretzelVisible = true;

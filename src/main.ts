@@ -118,16 +118,14 @@ window.onload = (): void => {
     guests.ingest(logs);
     guests.update(game.people);
 
-    // Float money deltas above the clock: expenses (money/staff logs) and income.
+    // Float money deltas above the clock: expenses and per-guest sales income.
+    // Sales logs name the guest (e.g. "Anna kauft ein Bier"), so the green pop
+    // shows that name; the reason is the text before any amount/detail.
     for (const e of logs) {
       if ((e.cat === 'money' || e.cat === 'staff') && e.delta) {
         const reason = e.msg.split(/[:(→]/)[0]!.trim(); // short reason before any detail
         hud.popMoney(e.delta, reason);
       }
-    }
-    if (game.pendingIncomePop > 0) {
-      hud.popMoney(game.pendingIncomePop, 'Einnahmen');
-      game.pendingIncomePop = 0;
     }
 
     const agg = game.aggregates();

@@ -390,11 +390,6 @@ export class GameState {
     return { before, after: this.reputation, happy };
   }
 
-  /** Running total of all sales income (beer + pretzels), for income pop-ups. */
-  get earnings(): number {
-    return this.totalEarned;
-  }
-
   /** Average money earned per guest that has been through the garden. */
   moneyPerVisitor(): number {
     return this.guestsDeparted > 0 ? this.totalEarned / this.guestsDeparted : 0;

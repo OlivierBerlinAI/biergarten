@@ -117,11 +117,6 @@ export class Game implements World {
   // sends bartenders home at night and brings them back (re-assigned) at dawn.
   private onShift = false;
 
-  // Sales income is batched into periodic green pop-ups (drained by the view).
-  pendingIncomePop = 0;
-  private lastEarnings = 0;
-  private incomeTimer = 0;
-
   constructor() {
     this.bar.add(this.places.bar); // start with one Ausschank at the usual spot
     this.toilets.add(this.places.toilet); // ...and one WC house
@@ -213,15 +208,6 @@ export class Game implements World {
         `Stundenlohn (${this.eco.service}×Service, ${this.eco.cleaners}×Putz, ${this.eco.gardeners}×Gärtner, ${this.eco.djWorkers}×DJ)`,
         -this.eco.lastWage,
       );
-    }
-
-    // Batch sales income into a green pop-up every few seconds (drained by the view).
-    this.incomeTimer++;
-    if (this.incomeTimer >= 180) {
-      this.incomeTimer = 0;
-      const inc = this.eco.earnings - this.lastEarnings;
-      this.lastEarnings = this.eco.earnings;
-      if (inc > 0) this.pendingIncomePop += inc;
     }
 
     this.updateArrivals();
