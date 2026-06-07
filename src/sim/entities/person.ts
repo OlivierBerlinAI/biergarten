@@ -394,7 +394,9 @@ export class Person {
       w.log('money', `${this.name} kauft ein Bier (${price.toFixed(2)} €)`, price, this.id);
       // Mood depends on how far the price strays from what guests expect to pay:
       // a bargain pleases (positive delta), a rip-off annoys (negative delta).
-      const moodVsExpected = (ECONOMY.expectedPrice - price) * GUEST.satPerEuroVsExpected;
+      // The two sides have different slopes (see config: bargains gentler than rip-offs).
+      const delta = ECONOMY.expectedPrice - price;
+      const moodVsExpected = delta * (delta >= 0 ? GUEST.satPerEuroBelowExpected : GUEST.satPerEuroAboveExpected);
       this.changeSat(w, this._satisfaction + moodVsExpected, 'Bier bezahlt');
       this.bladderDelta = rand(GUEST.bladderPerBeerMin, GUEST.bladderPerBeerMax);
       this.state = 'toSeat';

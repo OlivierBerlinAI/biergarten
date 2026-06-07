@@ -459,10 +459,12 @@ export const GUEST = {
   satGardenPee: -28,
   /**
    * Satisfaction change per euro the price deviates from ECONOMY.expectedPrice.
-   * At the expected price the change is 0; every euro below gives points (a
-   * bargain pleases), every euro above costs points (a rip-off annoys).
+   * At the expected price (4 €) the change is 0. The two sides have different
+   * slopes so the anchors land where we want: a bargain pleases more gently
+   * (1 € → +10), a rip-off annoys harder (16 € → −25).
    */
-  satPerEuroVsExpected: 1,
+  satPerEuroBelowExpected: 10 / 3, // +10 at 1 € (3 € under)
+  satPerEuroAboveExpected: 25 / 12, // −25 at 16 € (12 € over)
   /** Satisfaction gained over the course of drinking one beer (drinking = happy). */
   satDrinkPerBeer: 12,
   /** Satisfaction gained from a toilet visit (relief = happy). */
