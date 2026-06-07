@@ -24,7 +24,11 @@ export class GameState {
   // adds a separate, daily-fading boost on top (see runAdvertising).
   private repBaseline: number = START.reputation;
   private repWindow: number[] = []; // satisfaction of the most recent guests
-  private repSum = 0; // running Σ of repWindow, kept in sync on push/evict
+  // Reputation is a *weighted* rolling average: unhappy departures weigh
+  // REPUTATION.unhappyWeight× a happy one (bad word-of-mouth travels faster), so
+  // we track both Σ(weight·sat) and Σ(weight), kept in sync on push/evict.
+  private repWeightedSum = 0;
+  private repWeightSum = 0;
   private adBonus = 0; // current advertising boost on top of the guest average
 
   /** Servicekräfte: the merged beer+pretzel staff, allocated to taps/stands by Game. */
@@ -358,8 +362,10 @@ export class GameState {
    * the baseline, plus the current advertising boost.
    */
   get reputation(): number {
+    // Not-yet-seen slots count as one baseline guest each (weight 1).
     const seedSlots = Math.max(0, REPUTATION.window - this.repWindow.length);
-    const mean = (this.repSum + this.repBaseline * seedSlots) / REPUTATION.window;
+    const mean =
+      (this.repWeightedSum + this.repBaseline * seedSlots) / (this.repWeightSum + seedSlots);
     return clamp(mean + this.adBonus, 0, 100);
   }
 
@@ -368,7 +374,8 @@ export class GameState {
   resetReputation(value: number): void {
     this.repBaseline = value;
     this.repWindow = [];
-    this.repSum = 0;
+    this.repWeightedSum = 0;
+    this.repWeightSum = 0;
     this.adBonus = 0;
   }
 
@@ -381,13 +388,24 @@ export class GameState {
   recordDeparture(satisfaction: number): { before: number; after: number; happy: boolean } {
     const before = this.reputation;
     this.guestsDeparted += 1;
+    const w = GameState.repWeight(satisfaction);
     this.repWindow.push(satisfaction);
-    this.repSum += satisfaction;
+    this.repWeightedSum += w * satisfaction;
+    this.repWeightSum += w;
     if (this.repWindow.length > REPUTATION.window) {
-      this.repSum -= this.repWindow.shift()!; // drop the oldest guest from the average
+      const old = this.repWindow.shift()!; // drop the oldest guest from the average
+      const ow = GameState.repWeight(old);
+      this.repWeightedSum -= ow * old;
+      this.repWeightSum -= ow;
     }
     const happy = satisfaction >= REPUTATION.unhappyThreshold;
     return { before, after: this.reputation, happy };
+  }
+
+  /** Weight a departure carries in the rolling reputation average: unhappy
+   *  guests count REPUTATION.unhappyWeight× a happy one. */
+  private static repWeight(satisfaction: number): number {
+    return satisfaction < REPUTATION.unhappyThreshold ? REPUTATION.unhappyWeight : 1;
   }
 
   /** Average money earned per guest that has been through the garden. */
