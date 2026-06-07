@@ -24,6 +24,10 @@ export const BAR = {
   laneSpacing: 44,
   /** Distance between people standing in the same queue. */
   queueSpacing: 30,
+  /** Virtual distance (px) added per person already queued, when a guest chooses
+   *  which building to walk to — so two equally-near bars even out instead of
+   *  one taking the whole crowd. */
+  queuePenaltyPx: 10,
   /** Y offset of the first (front) queue spot, below the bar counter. */
   frontOffsetY: 58,
   /** Y offset of each tap's progress bar (on the counter face). */

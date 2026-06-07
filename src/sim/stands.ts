@@ -32,6 +32,9 @@ export interface Stand {
 
 const FRONT_OFFSET_Y = 46;
 const QUEUE_SPACING = 28;
+/** Virtual distance (px) added per queued guest when picking a stand, so two
+ *  equally-near stands even out instead of one taking the whole crowd. */
+const QUEUE_PENALTY_PX = 10;
 
 export class Stands {
   readonly list: Stand[] = [];
@@ -132,12 +135,12 @@ export class Stands {
 
   private pickNearest(from: Vec, ok: (s: Stand) => boolean): Stand | null {
     let best: Stand | null = null;
-    let bestDist = Infinity;
+    let bestScore = Infinity;
     for (const s of this.list) {
       if (!ok(s)) continue;
-      const d = dist(s.pos, from);
-      if (d < bestDist) {
-        bestDist = d;
+      const score = dist(s.pos, from) + s.queue.length * QUEUE_PENALTY_PX;
+      if (score < bestScore) {
+        bestScore = score;
         best = s;
       }
     }

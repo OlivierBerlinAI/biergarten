@@ -95,26 +95,28 @@ export class Bar {
 
   // --- guest queueing ------------------------------------------------------
 
-  /** Assign p to the nearest building's shortest staffed queue. False if none. */
+  /** Assign p to the building+staffed queue with the lowest effective distance:
+   *  real distance plus a penalty per person already waiting, so two equally-near
+   *  bars even out instead of one taking the whole crowd. False if none staffed. */
   join(p: Person): boolean {
-    let best: Ausschank | null = null;
-    let bestDist = Infinity;
+    let bestLane: Tap | null = null;
+    let bestScore = Infinity;
     for (const a of this.list) {
-      if (!a.taps.some((t) => t.attendant !== null)) continue;
-      const d = dist(a.pos, p.pos);
-      if (d < bestDist) {
-        bestDist = d;
-        best = a;
+      // The lane this guest would join here is the shortest staffed tap.
+      let lane: Tap | null = null;
+      for (const t of a.taps) {
+        if (t.attendant === null) continue;
+        if (!lane || t.queue.length < lane.queue.length) lane = t;
+      }
+      if (!lane) continue;
+      const score = dist(a.pos, p.pos) + lane.queue.length * BAR.queuePenaltyPx;
+      if (score < bestScore) {
+        bestScore = score;
+        bestLane = lane;
       }
     }
-    if (!best) return false;
-    let lane: Tap | null = null;
-    for (const t of best.taps) {
-      if (t.attendant === null) continue;
-      if (!lane || t.queue.length < lane.queue.length) lane = t;
-    }
-    if (!lane) return false;
-    lane.queue.push(p);
+    if (!bestLane) return false;
+    bestLane.queue.push(p);
     return true;
   }
 
