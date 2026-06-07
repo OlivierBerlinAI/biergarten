@@ -486,7 +486,7 @@ export class Person {
         // Free and clean enough → go in.
         if (!stall.occupant) {
           this.toiletStall = w.toilets.enter(this);
-          this.toiletDuration = Math.floor(rand(60, 140));
+          this.toiletDuration = Math.floor(rand(90, 210)); // 50% longer than the old 60–140
           this.waitTimer = this.toiletDuration;
           this.state = 'inToilet';
           this.opacity = 0.25;

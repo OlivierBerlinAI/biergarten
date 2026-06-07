@@ -118,7 +118,7 @@ export const STAFF = {
   serveMin: 90,
   serveMax: 225,
   /** Pretzel selling is this many times faster than pouring a beer. */
-  pretzelServeDivisor: 10,
+  pretzelServeDivisor: 5,
   /**
    * Staff slowly need the toilet too. Each worker rolls their own fill rate in
    * this range, so they don't all need to go at the same time.
