@@ -134,9 +134,10 @@ export const STAFF = {
 
 /** The toilet: a shared waste tank (Klowagen empties it) and per-house dirtiness. */
 export const TOILET = {
-  /** Litres of waste a single completed toilet visit adds to the shared tank.
-   *  (The tank fills from actual loo use now, not from pouring beer.) */
-  wastePerUse: 4,
+  /** Litres of waste a staff member's toilet visit adds to the shared tank.
+   *  Guests instead pass exactly the beer they drank (1 L per beer); staff don't
+   *  drink beer, so they get this small fixed amount. */
+  staffWastePerUse: 2,
   /** Dirtiness (Verschmutzung, 0..100) added per use. */
   dirtPerUse: 9,
   /** Above this dirtiness guests refuse to use the toilet. */

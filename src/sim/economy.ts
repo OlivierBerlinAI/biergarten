@@ -115,9 +115,10 @@ export class GameState {
     this.beer.current = Math.min(this.beer.capacity, this.beer.current + litres);
   }
 
-  /** A completed toilet visit adds its waste to the shared tank (capped at full). */
-  useToilet(): void {
-    this.toilet.current = Math.min(this.toilet.capacity, this.toilet.current + TOILET.wastePerUse);
+  /** Add waste to the shared tank (capped at full) — a toilet visit passes the
+   *  litres the person drank (guests: their beer; staff: a small fixed amount). */
+  addWaste(litres: number): void {
+    this.toilet.current = Math.min(this.toilet.capacity, this.toilet.current + litres);
   }
 
   /** Pump waste out of the tank (the Klowagen calls this gradually). */

@@ -123,6 +123,7 @@ export class Person {
   private _thirst = rand(GUEST.thirstStartMin, GUEST.thirstStartMax);
   private _bladder = rand(0, GUEST.bladderStartMax);
   private _stomach = 0; // beer drunk but not yet passed into the bladder
+  private _drunkLitres = 0; // beer drunk since the last loo visit (1 L/beer), excreted there
   private _hunger = rand(GUEST.hungerStartMin, GUEST.hungerStartMax);
   private _satisfaction: number = GUEST.satisfactionStart;
 
@@ -442,6 +443,7 @@ export class Person {
     if (chance(0.008)) w.play('sip');
     if (this.drinkTimer <= 0) {
       this._thirst = 0; // a finished beer leaves the guest fully refreshed
+      this._drunkLitres += 1; // 1 litre in — excreted on the next loo visit
       // ...but a beer also stokes the appetite, so pretzels actually sell.
       this._hunger = clamp(this._hunger + rand(GUEST.hungerPerBeerMin, GUEST.hungerPerBeerMax), 0, 100);
       this.mugVisible = false;
@@ -544,7 +546,8 @@ export class Person {
     if (this.waitTimer <= 0) {
       this.opacity = 1;
       this._bladder = 0;
-      w.eco.useToilet(); // their business fills the shared waste tank
+      w.eco.addWaste(this._drunkLitres); // excrete the beer drunk since the last visit
+      this._drunkLitres = 0;
       w.toilets.leave(this);
       this.toiletStall = null;
       this.toiletHouse = null;
