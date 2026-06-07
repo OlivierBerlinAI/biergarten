@@ -2,7 +2,7 @@
 // long-term reputation. Pure logic, no rendering — entities and the UI talk to
 // this single source of truth.
 
-import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START, TOILET } from '../config.js';
+import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START } from '../config.js';
 import { clamp } from './vec.js';
 import type { DecoKind } from './deco.js';
 
