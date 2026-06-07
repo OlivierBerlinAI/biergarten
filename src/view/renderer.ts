@@ -3,7 +3,7 @@
 // drawable. Sprites are keyed by entity id; created/updated/removed each frame.
 
 import paper from '../scope.js';
-import { BAR, WC, DJ, type Towel } from '../config.js';
+import { BAR, WC, DJ, ECONOMY, type Towel } from '../config.js';
 import type { Game, Demolishable } from '../sim/game.js';
 import type { WcHouse } from '../sim/toilets.js';
 import type { Stand } from '../sim/stands.js';
@@ -50,7 +50,7 @@ export class Renderer {
 
   private readonly units = new Map<number, { g: paper.Group; benches: number }>();
   private readonly pathSprites = new Map<number, paper.Group>();
-  private readonly standSprites = new Map<number, { g: paper.Group; gauge: TapGauge }>();
+  private readonly standSprites = new Map<number, { g: paper.Group; gauge: TapGauge; stock: DirtBar; auto: paper.PointText }>();
   private readonly service = new Map<number, SimpleSprite>();
   private readonly djStaffSprites = new Map<number, SimpleSprite>();
   private readonly bars = new Map<number, BarSprite>();
@@ -681,11 +681,18 @@ export class Renderer {
       const len = game.stands.queueLen(s);
       const txt = len > 0 ? String(len) : '';
       if (sp.gauge.count.content !== txt) sp.gauge.count.content = txt;
+      // Remaining-stock bar: green → yellow → red as it runs low.
+      const frac = ECONOMY.pretzelCapacity > 0 ? s.stock / ECONOMY.pretzelCapacity : 0;
+      sp.stock.fill.visible = frac > 0.001;
+      if (sp.stock.fill.visible) sp.stock.fill.bounds = new paper.Rectangle(sp.stock.left, sp.stock.top, sp.stock.w * frac, sp.stock.h);
+      sp.stock.fill.fillColor = col(frac > 0.5 ? '#5fbf57' : frac > 0.2 ? '#e0b53a' : '#d65a4a');
+      // Auto-resupply badge: shown only while this stand restocks itself.
+      sp.auto.visible = s.autoDeliver;
     }
     for (const [id, sp] of this.standSprites) if (!live.has(id)) { sp.g.remove(); this.standSprites.delete(id); }
   }
 
-  private buildStand(game: Game, s: Stand): { g: paper.Group; gauge: TapGauge } {
+  private buildStand(game: Game, s: Stand): { g: paper.Group; gauge: TapGauge; stock: DirtBar; auto: paper.PointText } {
     const g = new paper.Group();
     this.standsG.addChild(g);
     const { x, y } = s.pos;
@@ -713,10 +720,32 @@ export class Renderer {
       fontSize: 18,
       justification: 'center',
     });
+    // Auto-resupply badge above the awning (toggled in syncStands).
+    const auto = new paper.PointText({
+      point: [x + 22, y - 26], content: '🔁', fontSize: 13, justification: 'center',
+    });
+    auto.visible = false;
     g.insertChild(0, shadow);
-    g.addChildren([body, roof, sign]);
+    g.addChildren([body, roof, sign, auto]);
+    // A remaining-stock bar above the booth, and the serve/queue gauge below it.
+    const stock = this.buildStockBar(g, x, y - 30);
     const gauge = this.buildTapGauge(g, x, game.stands.gaugeY(s));
-    return { g, gauge };
+    return { g, gauge, stock, auto };
+  }
+
+  /** A slim bar above a stand showing how much pretzel stock is left. */
+  private buildStockBar(g: paper.Group, cx: number, cy: number): DirtBar {
+    const w = 34, h = 6;
+    const left = cx - w / 2, top = cy - h / 2;
+    const bg = new paper.Path.Rectangle(new paper.Rectangle(left, top, w, h), new paper.Size(2, 2));
+    bg.fillColor = new paper.Color(0, 0, 0, 0.5);
+    bg.strokeColor = new paper.Color(1, 1, 1, 0.35);
+    bg.strokeWidth = 1;
+    const fill = new paper.Path.Rectangle(new paper.Rectangle(left, top, 0.001, h), new paper.Size(2, 2));
+    fill.fillColor = col('#5fbf57');
+    fill.visible = false;
+    g.addChildren([bg, fill]);
+    return { fill, left, top, w, h };
   }
 
   // --- DJ staff -------------------------------------------------------------
