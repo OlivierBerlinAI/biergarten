@@ -93,7 +93,7 @@ export const START = {
   dogs: 2,
   tables: 0, // start empty — the player places the first table themselves
   benchesPerStartTable: 2,
-  reputation: 60, // long-term satisfaction (0..100)
+  reputation: 40, // long-term satisfaction (0..100) — the "basics" start opens here
   blankReputation: 15, // a "blank field" start opens with a low reputation
   beer: 25, // litres in the tank at the start
   service: 1, // start with one Servicekraft already on shift
