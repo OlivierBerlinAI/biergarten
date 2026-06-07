@@ -133,6 +133,17 @@ export class Stands {
     return true;
   }
 
+  /** Where p would queue if it joined right now, WITHOUT reserving the spot —
+   *  the back of the best stand's line. Null if there's no stand at all. Lets a
+   *  guest walk over before actually claiming a queue slot. */
+  prospectiveSpot(p: Person): Vec | null {
+    const s =
+      this.pickNearest(p.pos, (st) => st.seller !== null && st.stock >= 1) ??
+      this.pickNearest(p.pos, () => true);
+    if (!s) return null;
+    return { x: s.pos.x, y: s.pos.y + FRONT_OFFSET_Y + s.queue.length * QUEUE_SPACING };
+  }
+
   private pickNearest(from: Vec, ok: (s: Stand) => boolean): Stand | null {
     let best: Stand | null = null;
     let bestScore = Infinity;

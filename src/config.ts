@@ -406,6 +406,10 @@ export const GUEST = {
   /** Money a single guest is willing to spend in total. */
   walletMin: 15,
   walletMax: 48.75,
+  /** A guest only claims a fixed spot in a queue (bar / stand / WC) once within
+   *  this many px of the back of that line. Until then they just walk over, so a
+   *  guest still trekking across the garden never holds up the people behind. */
+  queueJoinRadius: 90,
   /** Guests arrive with little thirst; it builds up while they sit. A finished
    *  beer fully quenches it (thirst → 0), so there's no per-beer amount. */
   thirstStartMin: 10,

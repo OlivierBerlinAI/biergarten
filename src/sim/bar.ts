@@ -99,25 +99,42 @@ export class Bar {
    *  real distance plus a penalty per person already waiting, so two equally-near
    *  bars even out instead of one taking the whole crowd. False if none staffed. */
   join(p: Person): boolean {
-    let bestLane: Tap | null = null;
+    const sel = this.pickLane(p);
+    if (!sel) return false;
+    sel.lane.queue.push(p);
+    return true;
+  }
+
+  /** Where p would stand if it joined right now, WITHOUT reserving the spot —
+   *  the back of the best staffed lane. Null if no lane is staffed. Used so a
+   *  guest walks over before actually claiming a queue slot. */
+  prospectiveSpot(p: Person): Vec | null {
+    const sel = this.pickLane(p);
+    return sel ? this.tapFront(sel.a, sel.ti, sel.lane.queue.length) : null;
+  }
+
+  /** Pick the building+staffed tap with the lowest effective distance (real
+   *  distance plus a per-waiting-guest penalty), so equally-near bars even out. */
+  private pickLane(p: Person): { a: Ausschank; ti: number; lane: Tap } | null {
+    let best: { a: Ausschank; ti: number; lane: Tap } | null = null;
     let bestScore = Infinity;
     for (const a of this.list) {
       // The lane this guest would join here is the shortest staffed tap.
       let lane: Tap | null = null;
-      for (const t of a.taps) {
+      let ti = -1;
+      for (let i = 0; i < a.taps.length; i++) {
+        const t = a.taps[i]!;
         if (t.attendant === null) continue;
-        if (!lane || t.queue.length < lane.queue.length) lane = t;
+        if (!lane || t.queue.length < lane.queue.length) { lane = t; ti = i; }
       }
       if (!lane) continue;
       const score = dist(a.pos, p.pos) + lane.queue.length * BAR.queuePenaltyPx;
       if (score < bestScore) {
         bestScore = score;
-        bestLane = lane;
+        best = { a, ti, lane };
       }
     }
-    if (!bestLane) return false;
-    bestLane.queue.push(p);
-    return true;
+    return best;
   }
 
   leave(p: Person): void {

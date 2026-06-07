@@ -1,7 +1,7 @@
 // A guest. Pure state machine over a {x,y} position — no rendering. The view
 // reads pos + the render flags (mugVisible, beerLevel, opacity, bob, moving).
 
-import { stepToward, rand, chance, clamp, pick, type Vec } from '../vec.js';
+import { stepToward, dist, rand, chance, clamp, pick, type Vec } from '../vec.js';
 import { SKIN, SHIRTS, TOWEL, GUEST, LITTER, WORLD, STAFF, TOILET, CLOCK, PATH, DECO, DJ, ECONOMY, type Towel } from '../../config.js';
 import { FIRST_NAMES, LAST_NAMES } from '../names.js';
 import type { SeatRef } from '../seating.js';
@@ -344,9 +344,17 @@ export class Person {
 
   private toBar(w: World): void {
     if (!w.bar.has(this)) {
-      // Join the nearest staffed queue. A dry tank doesn't stop them lining up:
-      // they only discover the empty tank once they reach the counter (see
-      // queuing), so they actually walk over to find out — not from the seat.
+      // Walk toward the back of the nearest staffed queue, but DON'T claim a spot
+      // until we're actually near it — otherwise a guest trekking across the
+      // garden holds up everyone behind them in line. A dry tank doesn't stop
+      // them lining up: they only discover the empty tank at the counter.
+      const target = w.bar.prospectiveSpot(this);
+      if (!target) {
+        this.noBeerAtBar(w);
+        return;
+      }
+      this.moveTo(target);
+      if (dist(this.pos, target) > GUEST.queueJoinRadius) return; // still walking over
       if (!w.bar.join(this)) {
         this.noBeerAtBar(w);
         return;
@@ -455,14 +463,20 @@ export class Person {
       this.rejectedStalls.clear();
       this.toiletWait = 0;
     }
-    // Make sure we're queued at a cabin we haven't already rejected.
+    // Walk to the WC first; only claim a cabin's queue spot once we're near it,
+    // so a guest still on their way doesn't hold up the line behind them.
     if (!w.toilets.has(this)) {
+      const house = this.toiletHouse!;
+      if (dist(this.pos, house.pos) > GUEST.queueJoinRadius) {
+        this.moveTo(house.pos);
+        return;
+      }
       const idx = this.pickStall();
       if (idx === null) {
         this.toiletGiveUp(w); // every cabin here was too dirty
         return;
       }
-      w.toilets.joinStall(this, this.toiletHouse!, idx);
+      w.toilets.joinStall(this, house, idx);
       this.toiletWait = 0;
     }
     const atSpot = this.moveTo(w.toilets.positionOf(this));
@@ -608,8 +622,17 @@ export class Person {
   /** Queue at a pretzel stand, get served (10× faster than a beer), pay and eat. */
   private toStand(w: World): void {
     if (!w.stands.has(this)) {
-      if (!w.stands.join(this)) {
+      // Same as the bar: approach first, only claim a queue slot once near, so a
+      // far-off guest doesn't block the line behind them.
+      const target = w.stands.prospectiveSpot(this);
+      if (!target) {
         this.standDisappointed(w); // there's no stand at all to walk to
+        return;
+      }
+      this.moveTo(target);
+      if (dist(this.pos, target) > GUEST.queueJoinRadius) return; // still walking over
+      if (!w.stands.join(this)) {
+        this.standDisappointed(w);
         return;
       }
       this.standServeTimer = 0;
