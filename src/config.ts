@@ -321,7 +321,7 @@ export const ECONOMY = {
   klowagenCost: 100,
   /** Cost to buy a new (empty) bench table. */
   tableCost: 70,
-  /** Cost to buy a bench (adds 3 seats to a table that has a free bench slot). */
+  /** Cost to buy a bench (adds 4 seats to a table that has a free bench slot). */
   benchCost: 12,
   /** Cost to buy a standing table (comes with 4 stools). */
   standCost: 55,

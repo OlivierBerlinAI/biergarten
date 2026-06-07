@@ -1,4 +1,4 @@
-// Pure seating model: bench tables (3 seats per bench, up to 2 benches) and
+// Pure seating model: bench tables (4 seats per bench, up to 2 benches) and
 // standing tables (4 stools). No rendering — the view reads `units` and draws
 // them; reserved/occupied seats (taken[]) are where the view puts towels.
 
@@ -27,7 +27,7 @@ export interface Unit {
 }
 
 function unitSeatCount(u: Unit): number {
-  return u.kind === 'stand' ? 4 : u.benches * 3;
+  return u.kind === 'stand' ? 4 : u.benches * 4;
 }
 
 function seatPositions(u: Unit): Vec[] {
@@ -40,14 +40,12 @@ function seatPositions(u: Unit): Vec[] {
       { x, y: y + 30 },
     ];
   }
-  // bench: 0..2 top bench, 3..5 bottom bench
+  // bench: 0..3 top bench, 4..7 bottom bench (4 guests per bench, spread across
+  // the 90px-wide seat plank)
+  const xs = [x - 33, x - 11, x + 11, x + 33];
   return [
-    { x: x - 30, y: y - 44 },
-    { x, y: y - 44 },
-    { x: x + 30, y: y - 44 },
-    { x: x - 30, y: y + 44 },
-    { x, y: y + 44 },
-    { x: x + 30, y: y + 44 },
+    ...xs.map((sx) => ({ x: sx, y: y - 44 })),
+    ...xs.map((sx) => ({ x: sx, y: y + 44 })),
   ];
 }
 
