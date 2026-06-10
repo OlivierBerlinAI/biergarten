@@ -555,8 +555,11 @@ export class Person {
       this.changeSat(w, this._satisfaction + GUEST.satToiletRelief, 'Klo: Erleichterung');
       // Usage fee: collect it into the till and dock this guest's mood for paying.
       if (w.eco.wcFee > 0) {
+        const fee = w.eco.wcFee;
         w.eco.chargeWcFee();
-        this.changeSat(w, this._satisfaction - w.eco.wcFee * TOILET.satFeePerEuro, 'Klo-Nutzungsgebühr');
+        this._spent += fee;
+        w.log('money', `${this.name} zahlt Klogebühr (${fee.toFixed(2)} €)`, fee, this.id);
+        this.changeSat(w, this._satisfaction - fee * TOILET.satFeePerEuro, 'Klo-Nutzungsgebühr');
       }
       w.play('toilet');
       this.state = 'goSit';
