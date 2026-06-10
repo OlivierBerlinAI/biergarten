@@ -18,6 +18,17 @@ export function fmtDelta(cat: LogCat, v: number): string {
   return `${sign}${mag}`;
 }
 
+/**
+ * Reputation deltas are tiny (a rolling average over 1000 guests), so showing the
+ * raw number is meaningless. Render their size instead as 1–3 +/− symbols.
+ * Thresholds split the observed magnitude range (~0.001–0.12) into rough thirds.
+ */
+function repSymbols(v: number): string {
+  const mag = Math.abs(v);
+  const n = mag >= 0.05 ? 3 : mag >= 0.012 ? 2 : 1;
+  return (v > 0 ? '+' : '−').repeat(n);
+}
+
 /** Strip the trailing mood "70→100" range and "(8.00 €)" amount off a message. */
 function stripNumbers(s: string): string {
   s = s.replace(/\s*:\s*\d+\s*→\s*\d+\s*$/u, ''); // trailing mood "…: 70→100"
@@ -58,7 +69,8 @@ interface RowOpts {
  */
 export function buildLogRow(e: LogEntry, opts: RowOpts = {}): HTMLElement {
   const clean = opts.ownName !== undefined || opts.guestLine === true;
-  const showDelta = !clean || e.cat === 'mood'; // mood deltas show even on guest lines
+  // Mood (numeric) and reputation (as +/− symbols) deltas show even on guest lines.
+  const showDelta = !clean || e.cat === 'mood' || e.cat === 'reputation';
 
   const row = document.createElement('div');
   row.className = `log-row cat-${e.cat}`;
@@ -83,7 +95,7 @@ export function buildLogRow(e: LogEntry, opts: RowOpts = {}): HTMLElement {
   if (showDelta && e.delta !== undefined && e.delta !== 0) {
     const d = document.createElement('span');
     d.className = `log-delta ${e.delta > 0 ? 'up' : 'down'}`;
-    d.textContent = fmtDelta(e.cat, e.delta);
+    d.textContent = e.cat === 'reputation' ? repSymbols(e.delta) : fmtDelta(e.cat, e.delta);
     row.append(d);
   }
   return row;
