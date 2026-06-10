@@ -924,7 +924,9 @@ export class Renderer {
     this.heartPhase += 1;
     const PERIOD = 48; // frames for one heart to rise and fade
     const live = new Set<number>();
-    for (const p of game.people) {
+    // Guests and service staff alike float hearts while petting a dog.
+    const petters: { id: number; petSpot: { x: number; y: number } | null }[] = [...game.people, ...game.service];
+    for (const p of petters) {
       const spot = p.petSpot;
       if (!spot) continue;
       live.add(p.id);

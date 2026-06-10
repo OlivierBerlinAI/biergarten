@@ -40,6 +40,8 @@ export class ServiceStaff {
   private idleTarget: Vec | null = null;
   private idleDog: Dog | null = null;
   private idlePause = 0;
+  private petTimer = 0; // frames left of a dog-petting pause (both stand still)
+  private petAnchor: Vec | null = null; // midpoint above the pair, where hearts rise
   private pathMult = 1;
 
   constructor(id: number, entrance: Vec) {
@@ -66,6 +68,11 @@ export class ServiceStaff {
     return this.assignment === null && this.state !== 'leaving';
   }
 
+  /** Where the hearts should rise while petting a dog (midpoint above the pair), or null. */
+  get petSpot(): Vec | null {
+    return this.petTimer > 0 ? this.petAnchor : null;
+  }
+
   /** (Re)assign to a tap, a stand, or nothing. Walks to the new post. */
   assignTo(a: ServiceAssignment | null): void {
     if (this.sameAssignment(a)) return; // already there — don't restart the walk
@@ -73,6 +80,8 @@ export class ServiceStaff {
     this.idleTarget = null;
     this.idleDog = null;
     this.idlePause = 0;
+    this.petTimer = 0;
+    this.petAnchor = null;
     // Mid-toilet / leaving: let that finish; it picks the post back up afterwards.
     if (this.state === 'leaving' || this.state === 'toToilet' || this.state === 'inToilet') return;
     this.state = a ? 'arriving' : 'idle';
@@ -109,12 +118,13 @@ export class ServiceStaff {
         if (!this.pendingMalheur && this.needsToilet(w)) { this.state = 'toToilet'; break; }
         if (this.idlePause > 0) { this.idlePause--; break; }
         if (this.idleDog) {
-          if (this.moveTo(this.idleDog.pos) || dist(this.pos, this.idleDog.pos) < 24) {
-            const dur = Math.floor(rand(60, 150));
-            this.idleDog.pet(dur);
-            this.idlePause = dur;
-            this.idleDog = null;
-            this.idleTarget = null;
+          if (this.petTimer > 0) {
+            // Standing still, petting: keep the dog put and float the hearts.
+            this.idleDog.pet(4);
+            this.petAnchor = { x: (this.pos.x + this.idleDog.pos.x) / 2, y: Math.min(this.pos.y, this.idleDog.pos.y) - 6 };
+            if (--this.petTimer <= 0) { this.idleDog = null; this.petAnchor = null; this.idleTarget = null; }
+          } else if (this.moveTo(this.idleDog.pos) || dist(this.pos, this.idleDog.pos) < 24) {
+            this.petTimer = Math.floor(rand(60, 150));
           }
         } else if (this.idleTarget) {
           if (this.moveTo(this.idleTarget)) { this.idleTarget = null; this.idlePause = Math.floor(rand(40, 150)); }
