@@ -48,6 +48,9 @@ window.onload = (): void => {
       controls.selectStand(id);
       document.getElementById('pretzelwin')?.classList.remove('hidden');
     },
+    () => {
+      document.getElementById('wcwin')?.classList.remove('hidden');
+    },
   );
 
   const actions: ViewActions = {

@@ -241,6 +241,15 @@
     #pretzel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     #pretzel-head h3 { margin: 0; }
 
+    /* WC management overlay (opens on clicking a WC house) */
+    #wcwin { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 240px; z-index: 15; }
+    #wcwin.hidden { display: none; }
+    #wcwin input[type=range] { width: 100%; margin: 2px 0 10px; accent-color: #ffd34d; }
+    #wcwin .price { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    #wc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    #wc-head h3 { margin: 0; }
+    #wcwin .small { color: #b9c4cf; }
+
     /* upgrades window (centered, toggled) */
     #upgradewin {
       top: 50%;
@@ -594,6 +603,17 @@
     <input id="pretzel-order-slider" type="range" min="0" max="100" step="5" value="30">
     <button id="btn-pretzel-order">🥨 Brezn bestellen</button>
     <button id="btn-pretzel-auto">🔁 Auto-Lieferung: aus</button>
+  </div>
+
+  <!-- WC management overlay (opens on clicking a WC house) -->
+  <div id="wcwin" class="panel hidden">
+    <div id="wc-head">
+      <h3>🚽 WC-Haus</h3>
+      <button id="wc-close" class="logbtn">✕</button>
+    </div>
+    <div class="price"><span>Nutzungsgebühr</span><b><span id="wc-fee-val">0.00 €</span></b></div>
+    <input id="wc-fee-slider" type="range" min="0" max="2.5" step="0.1" value="0">
+    <div class="small">Gilt für alle WCs. Höhere Gebühr drückt die Zufriedenheit beim Klogang.</div>
   </div>
 
   <!-- Debug log window -->

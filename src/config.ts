@@ -155,6 +155,10 @@ export const TOILET = {
   gardenPeeFactor: 0.22,
   /** Chance, per in-game minute spent waiting in the toilet queue, of a malheur. */
   queueMalheurChance: 0.01,
+  /** Usage fee (Nutzungsgebühr) the player sets per WC visit (slider bounds), in euros. */
+  fee: { min: 0, max: 2.5, start: 0, step: 0.1 },
+  /** Satisfaction lost per euro of usage fee charged on a visit (fee × this). */
+  satFeePerEuro: 15,
 } as const;
 
 /** WC houses: placeable buildings holding 1..maxStalls toilets, each its own queue. */

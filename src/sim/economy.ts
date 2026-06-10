@@ -2,7 +2,7 @@
 // long-term reputation. Pure logic, no rendering — entities and the UI talk to
 // this single source of truth.
 
-import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START } from '../config.js';
+import { DOGCATCHER, ECONOMY, GAME_OVER, REPUTATION, STAFF, START, TOILET } from '../config.js';
 import { clamp } from './vec.js';
 import type { DecoKind } from './deco.js';
 
@@ -17,6 +17,8 @@ export interface Tank {
 export class GameState {
   money: number = START.money;
   beerPrice: number = ECONOMY.price.start;
+  /** WC usage fee per visit (Nutzungsgebühr), in euros. Set via the WC overlay. */
+  wcFee: number = TOILET.fee.start;
 
   // Long-term reputation: a rolling average over the last REPUTATION.window
   // departing guests. Until the window fills, the empty slots count as the
@@ -361,6 +363,17 @@ export class GameState {
 
   setBeerPrice(price: number): void {
     this.beerPrice = Math.max(ECONOMY.price.min, Math.min(ECONOMY.price.max, price));
+  }
+
+  setWcFee(fee: number): void {
+    this.wcFee = Math.max(TOILET.fee.min, Math.min(TOILET.fee.max, fee));
+  }
+
+  /** Collect one WC usage fee into the till (no-op when the fee is 0). */
+  chargeWcFee(): void {
+    if (this.wcFee <= 0) return;
+    this.money += this.wcFee;
+    this.totalEarned += this.wcFee;
   }
 
   /**

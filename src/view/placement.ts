@@ -21,6 +21,7 @@ export class Placement {
     private readonly renderer: Renderer,
     private readonly onGuestPick: (id: number) => void,
     private readonly onStandPick: (id: number) => void,
+    private readonly onWcPick: () => void,
   ) {
     const tool = new paper.Tool();
     tool.onMouseMove = (e: paper.ToolEvent) => this.onMove(e.point);
@@ -112,6 +113,8 @@ export class Placement {
       // …a pretzel stand, opening its (per-stand) management overlay…
       const st = this.game.stands.at(p);
       if (st) { this.onStandPick(st.id); return; }
+      // …a WC house, opening its (shared) usage-fee overlay…
+      if (this.game.toilets.at(p)) { this.onWcPick(); return; }
       // …or a guest, in which case we follow them and open their panel.
       const id = this.nearestGuest(pt);
       if (id !== null) this.onGuestPick(id);

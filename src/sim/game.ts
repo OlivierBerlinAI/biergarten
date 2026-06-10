@@ -318,6 +318,9 @@ export class Game implements World {
   setBeerPrice(price: number): void {
     this.eco.setBeerPrice(price);
   }
+  setWcFee(fee: number): void {
+    this.eco.setWcFee(fee);
+  }
   setRestockAmount(amount: number): void {
     this.eco.setRestockAmount(amount);
   }

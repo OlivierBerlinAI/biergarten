@@ -30,11 +30,13 @@ export class Controls {
   private readonly pretzelPriceSlider: HTMLInputElement | null;
   private readonly pretzelOrderSlider: HTMLInputElement | null;
   private readonly adSlider: HTMLInputElement | null;
+  private readonly wcFeeSlider: HTMLInputElement | null;
   private draggingSlider = false;
   private draggingRestock = false;
   private draggingPretzelPrice = false;
   private draggingPretzelOrder = false;
   private draggingAd = false;
+  private draggingWcFee = false;
   /** Which stand the pretzel overlay currently manages (null = none open). */
   private selectedStandId: number | null = null;
   /** Collapse the build menu (assigned in setupBuildMenu); used by Esc. */
@@ -91,6 +93,7 @@ export class Controls {
     this.setupBuildMenu();
     this.onClick('btn-demolish', () => { sound.init(); actions.toggleDemolish(); });
     this.onClick('pretzel-close', () => document.getElementById('pretzelwin')?.classList.add('hidden'));
+    this.onClick('wc-close', () => document.getElementById('wcwin')?.classList.add('hidden'));
     this.onClick('btn-settings', () => document.getElementById('settingswin')?.classList.toggle('hidden'));
     this.onClick('settings-close', () => document.getElementById('settingswin')?.classList.add('hidden'));
     this.onClick('btn-game', () => document.getElementById('gamewin')?.classList.toggle('hidden'));
@@ -165,6 +168,12 @@ export class Controls {
       this.pretzelOrderSlider.addEventListener('input', () => { this.draggingPretzelOrder = true; apply(); });
       this.pretzelOrderSlider.addEventListener('change', () => { this.draggingPretzelOrder = false; apply(); });
     }
+    this.wcFeeSlider = this.el('wc-fee-slider') as HTMLInputElement | null;
+    if (this.wcFeeSlider) {
+      const apply = (): void => game.setWcFee(parseFloat(this.wcFeeSlider!.value));
+      this.wcFeeSlider.addEventListener('input', () => { this.draggingWcFee = true; apply(); });
+      this.wcFeeSlider.addEventListener('change', () => { this.draggingWcFee = false; apply(); });
+    }
     this.adSlider = this.el('ad-slider') as HTMLInputElement | null;
     if (this.adSlider) {
       const apply = (): void => game.setAdBudget(parseFloat(this.adSlider!.value));
@@ -207,7 +216,7 @@ export class Controls {
   /** Esc dismisses every open pop-over: the dialog windows + the build menu.
    *  The modal start / win-lose overlays are intentionally left alone. */
   private closeOverlays(): void {
-    const ids = ['settingswin', 'gamewin', 'pretzelwin', 'logwin', 'guestwin', 'upgradewin'];
+    const ids = ['settingswin', 'gamewin', 'pretzelwin', 'wcwin', 'logwin', 'guestwin', 'upgradewin'];
     for (const id of ids) document.getElementById(id)?.classList.add('hidden');
     this.closeBuildMenu();
   }
@@ -220,6 +229,11 @@ export class Controls {
     if (this.slider && !this.draggingSlider) {
       const v = String(eco.beerPrice);
       if (this.slider.value !== v) this.slider.value = v;
+    }
+    this.text('wc-fee-val', `${eco.wcFee.toFixed(2)} €`);
+    if (this.wcFeeSlider && !this.draggingWcFee) {
+      const v = String(eco.wcFee);
+      if (this.wcFeeSlider.value !== v) this.wcFeeSlider.value = v;
     }
     this.text('ad-val', `${eco.adBudget} €`);
     if (this.adSlider && !this.draggingAd) {

@@ -553,6 +553,11 @@ export class Person {
       this.toiletHouse = null;
       this.rejectedStalls.clear();
       this.changeSat(w, this._satisfaction + GUEST.satToiletRelief, 'Klo: Erleichterung');
+      // Usage fee: collect it into the till and dock this guest's mood for paying.
+      if (w.eco.wcFee > 0) {
+        w.eco.chargeWcFee();
+        this.changeSat(w, this._satisfaction - w.eco.wcFee * TOILET.satFeePerEuro, 'Klo-Nutzungsgebühr');
+      }
       w.play('toilet');
       this.state = 'goSit';
     }
