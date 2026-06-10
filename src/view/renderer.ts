@@ -76,6 +76,10 @@ export class Renderer {
   private highlightRing: paper.Path | null = null;
   private pulse = 0;
 
+  // Floating hearts shown over a guest+dog while they're being petted.
+  private readonly hearts = new Map<number, paper.Group>();
+  private heartPhase = 0;
+
   /** Ring this guest in the world so they're easy to spot (null = no ring). */
   setSelected(id: number | null): void {
     this.selectedPerson = id;
@@ -100,6 +104,7 @@ export class Renderer {
     this.syncCleaners(game);
     this.syncDogcatcher(game);
     this.syncTrucks(game);
+    this.syncHearts(game);
   }
 
   // --- Ausschank buildings + taps -------------------------------------------
@@ -913,6 +918,48 @@ export class Renderer {
   }
 
   // --- people ---------------------------------------------------------------
+
+  /** A few hearts drifting up over each guest currently petting a dog. */
+  private syncHearts(game: Game): void {
+    this.heartPhase += 1;
+    const PERIOD = 48; // frames for one heart to rise and fade
+    const live = new Set<number>();
+    for (const p of game.people) {
+      const spot = p.petSpot;
+      if (!spot) continue;
+      live.add(p.id);
+      let g = this.hearts.get(p.id);
+      if (!g) { g = this.buildHearts(); this.hearts.set(p.id, g); }
+      g.children.forEach((h, i) => {
+        // Each heart is offset in time + sideways so they stagger and sway.
+        const phase = ((this.heartPhase + i * (PERIOD / 3)) % PERIOD) / PERIOD; // 0..1
+        h.position = new paper.Point(
+          spot.x + (i - 1) * 7 + Math.sin(phase * Math.PI * 2) * 3,
+          spot.y - 12 - phase * 30,
+        );
+        h.opacity = 1 - phase;
+        h.scaling = new paper.Point(0.7 + phase * 0.3, 0.7 + phase * 0.3);
+      });
+      g.bringToFront();
+    }
+    for (const [id, g] of this.hearts) if (!live.has(id)) { g.remove(); this.hearts.delete(id); }
+  }
+
+  private buildHearts(): paper.Group {
+    const g = new paper.Group();
+    for (let i = 0; i < 3; i++) {
+      const heart = new paper.PointText({
+        point: [0, 0],
+        content: '💗',
+        justification: 'center',
+        fontSize: 14,
+      });
+      heart.applyMatrix = false;
+      g.addChild(heart);
+    }
+    this.entitiesG.addChild(g);
+    return g;
+  }
 
   private syncPeople(game: Game): void {
     const live = new Set<number>();

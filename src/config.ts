@@ -490,6 +490,23 @@ export const GUEST = {
   /** Satisfaction gained from a toilet visit (relief = happy). */
   satToiletRelief: 8,
 
+  // --- dog petting (a relaxing guest now and then greets a wandering dog) ----
+  /** Chance per chilling frame that a guest looks around for a dog to pet. */
+  petChance: 0.004,
+  /** A guest only sets off to pet a dog this close to where they're sitting. */
+  petRadius: 150,
+  /** Frames spent walking over before giving up on reaching a roaming dog. */
+  petApproachFrames: 240,
+  /** How close the guest must get to the dog to start petting. */
+  petReach: 22,
+  /** Frames the petting lasts — both stand still and hearts rise (rolled per pet). */
+  petDurationMin: 90,
+  petDurationMax: 160,
+  /** Frames before the same guest will go pet a dog again. */
+  petCooldownFrames: 2400,
+  /** Satisfaction gained from petting a dog. */
+  satPetDog: 30,
+
   // --- hunger (fed by the pretzel stand) -----------------------------------
   /** Guests arrive with a little hunger; it slowly builds while they stay. */
   hungerStartMin: 0,

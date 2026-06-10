@@ -6,6 +6,7 @@ import { SKIN, SHIRTS, TOWEL, GUEST, LITTER, WORLD, STAFF, TOILET, CLOCK, PATH, 
 import { FIRST_NAMES, LAST_NAMES } from '../names.js';
 import type { SeatRef } from '../seating.js';
 import type { Stall, WcHouse } from '../toilets.js';
+import type { Dog } from './dog.js';
 import type { World } from '../world.js';
 
 /** Frames per in-game minute (used for the toilet-queue malheur roll). */
@@ -24,6 +25,7 @@ export type PersonState =
   | 'inToilet'
   | 'goSit'
   | 'chilling'
+  | 'petDog'
   | 'toStand'
   | 'carryPretzel'
   | 'eating'
@@ -40,6 +42,7 @@ const MOVING_STATES: ReadonlySet<PersonState> = new Set<PersonState>([
   'toStand',
   'carryPretzel',
   'goSit',
+  'petDog',
   'fetchTowel',
   'leaving',
 ]);
@@ -63,6 +66,7 @@ const STATUS_LABEL: Record<PersonState, string> = {
   inToilet: 'auf dem Klo',
   goSit: 'geht zurück',
   chilling: 'entspannt',
+  petDog: 'streichelt einen Hund',
   toStand: 'holt sich eine Brezn',
   carryPretzel: 'trägt die Brezn zum Platz',
   eating: 'isst eine Brezn',
@@ -117,6 +121,12 @@ export class Person {
   private bladderDelta = 0;
   private pendingAccident = false; // a malheur on the way out after an unusable toilet
   private leaveReason = ''; // why they decided to head home (shown in the guest log)
+  // Dog petting: a relaxing guest sometimes wanders over to greet a dog.
+  private petPartner: Dog | null = null; // the dog being petted (during the pause)
+  private petTimer = 0; // frames left of the petting pause (0 = still approaching)
+  private petApproach = 0; // frames left to reach the dog before giving up
+  private petCooldown = 0; // frames until they'd consider petting again
+  private petAnchor: Vec | null = null; // midpoint above the pair, where hearts rise
 
   private wallet_ = rand(GUEST.walletMin, GUEST.walletMax);
   private _spent = 0;
@@ -172,6 +182,14 @@ export class Person {
   get moving(): boolean {
     return MOVING_STATES.has(this.state);
   }
+  /** True while actually petting a dog (both standing still) — drives the hearts. */
+  get petting(): boolean {
+    return this.state === 'petDog' && this.petTimer > 0;
+  }
+  /** Where the hearts should rise (midpoint above guest + dog), or null. */
+  get petSpot(): Vec | null {
+    return this.petting ? this.petAnchor : null;
+  }
   get pourProgress(): number {
     if (this.state !== 'ordering') return 0;
     return clamp(1 - this.serveTimer / this.serveDuration, 0, 1);
@@ -223,6 +241,7 @@ export class Person {
     this._thirst = clamp(this._thirst + this.thirstRate, 0, 100);
     this._hunger = clamp(this._hunger + this.hungerRate, 0, 100);
     this.visitTimer--; // counts down their whole stay; acted on from chilling
+    if (this.petCooldown > 0) this.petCooldown--; // gates how often they pet a dog
 
     // Beer in the stomach slowly passes into the bladder (so it fills gradually
     // long after the drink, not all at once while drinking). A full bladder
@@ -281,6 +300,7 @@ export class Person {
       case 'inToilet': this.inToilet(w); break;
       case 'goSit': this.goSit(w); break;
       case 'chilling': this.chilling(w); break;
+      case 'petDog': this.petDog(w); break;
       case 'toStand': this.toStand(w); break;
       case 'carryPretzel': this.carryPretzel(w); break;
       case 'eating': this.eating(w); break;
@@ -608,6 +628,16 @@ export class Person {
     // Reasons to head home — even with money left and a thirst:
     if (!w.eco.salesOpen) { this.depart('Garten schließt'); return; }
     if (this.visitTimer <= 0) { this.depart('Zeit ist um, muss weiter'); return; }
+    // A relaxing guest now and then spots a nearby dog and goes over to pet it.
+    if (this.petCooldown <= 0 && chance(GUEST.petChance)) {
+      const dog = w.nearestDog(this.pos);
+      if (dog && dist(this.pos, dog.pos) <= GUEST.petRadius) {
+        this.petApproach = GUEST.petApproachFrames;
+        this.petTimer = 0;
+        this.state = 'petDog';
+        return;
+      }
+    }
     // Peckish (and a stand exists to walk to) vs. thirsty — answer the louder
     // need first. Whether the stand actually has pretzels is found out there.
     const wantsPretzel = this._hunger >= GUEST.hungerWantPretzel && w.stands.count > 0 && !this.pretzelDisappointed;
@@ -628,6 +658,44 @@ export class Person {
         this.depart('kein Geld mehr');
       }
     }
+  }
+
+  /**
+   * Walk over to a dog and pet it: both stand still, hearts rise, and the guest
+   * gets a big mood lift. The dog is re-picked while approaching (so a caught or
+   * vanished dog just drops the plan); once close, we lock onto it for the pause.
+   */
+  private petDog(w: World): void {
+    if (this.petTimer <= 0) {
+      // Approaching: head for the nearest dog, giving up if it strays too long.
+      const dog = w.nearestDog(this.pos);
+      if (!dog || --this.petApproach <= 0) { this.endPet(); return; }
+      const reached = this.moveTo(dog.pos);
+      if (reached || dist(this.pos, dog.pos) <= GUEST.petReach) {
+        this.petPartner = dog;
+        this.petTimer = Math.floor(rand(GUEST.petDurationMin, GUEST.petDurationMax));
+      }
+      return;
+    }
+    // Petting: keep the dog standing, float the hearts above the pair.
+    const dog = this.petPartner;
+    if (!dog) { this.endPet(); return; }
+    dog.pet(4); // hold the dog still for as long as we keep petting
+    this.petAnchor = { x: (this.pos.x + dog.pos.x) / 2, y: Math.min(this.pos.y, dog.pos.y) - 6 };
+    if (--this.petTimer <= 0) {
+      this.changeSat(w, this._satisfaction + GUEST.satPetDog, 'Hund gestreichelt');
+      this.endPet();
+    }
+  }
+
+  /** Finish (or abandon) a dog-petting detour and head back to the seat. */
+  private endPet(): void {
+    this.petPartner = null;
+    this.petAnchor = null;
+    this.petTimer = 0;
+    this.petApproach = 0;
+    this.petCooldown = GUEST.petCooldownFrames;
+    if (this.seat) this.state = 'goSit'; else this.startLooking();
   }
 
   /** Walk to the pretzel stand; on arrival pay and eat (or bail if sold out). */
