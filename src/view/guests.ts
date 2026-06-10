@@ -4,7 +4,7 @@
 // easy to spot. Read-only view fed by the backend's drained log entries.
 
 import { type LogEntry } from '../sim/log.js';
-import { buildLogRow } from './logrow.js';
+import { buildLogRow, guestEventText } from './logrow.js';
 import type { Renderer } from './renderer.js';
 import type { Person } from '../sim/entities/person.js';
 
@@ -67,9 +67,9 @@ export class GuestsPanel {
 
       // Keep the list subtitle showing the guest's most recent event.
       const item = this.items.get(id);
-      if (item) item.sub.textContent = GuestsPanel.strip(e.msg);
+      if (item) item.sub.textContent = guestEventText(e.msg, this.names.get(id) ?? '');
       if (this.selected === id) {
-        this.logEl?.appendChild(buildLogRow(e, this.names.get(id) ?? ''));
+        this.logEl?.appendChild(buildLogRow(e, { ownName: this.names.get(id) ?? '' }));
         if (this.logEl) this.logEl.scrollTop = this.logEl.scrollHeight;
       }
     }
@@ -210,7 +210,7 @@ export class GuestsPanel {
 
     const hist = this.history.get(id) ?? [];
     const name = this.names.get(id) ?? '';
-    this.logEl?.replaceChildren(...hist.map((e) => buildLogRow(e, name)));
+    this.logEl?.replaceChildren(...hist.map((e) => buildLogRow(e, { ownName: name })));
     if (this.emptyEl) this.emptyEl.style.display = 'none';
     if (this.logEl) this.logEl.scrollTop = this.logEl.scrollHeight;
 
@@ -241,11 +241,6 @@ export class GuestsPanel {
     if (this.emptyEl) this.emptyEl.style.display = '';
     this.statsEl?.classList.add('hidden');
     this.renderer.setSelected(null);
-  }
-
-  /** Drop a leading "#42 " guest tag from a message for the compact subtitle. */
-  private static strip(msg: string): string {
-    return msg.replace(/^#\d+\s*/, '');
   }
 }
 

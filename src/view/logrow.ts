@@ -18,26 +18,45 @@ export function fmtDelta(cat: LogCat, v: number): string {
   return `${sign}${mag}`;
 }
 
-/**
- * Strip the guest's name, "#id" tag, mood "70→100" range and "(8.00 €)" amount
- * out of a message, leaving a clean activity phrase (e.g. "Hund gestreichelt",
- * "kauft ein Bier"). Used for a single guest's own timeline.
- */
-export function guestEventText(msg: string, name: string): string {
-  let s = msg.replace(/^#\d+\s*/, ''); // leading "#42 " guest tag
-  if (name && s.startsWith(name)) s = s.slice(name.length).replace(/^\s+/, '');
+/** Strip the trailing mood "70→100" range and "(8.00 €)" amount off a message. */
+function stripNumbers(s: string): string {
   s = s.replace(/\s*:\s*\d+\s*→\s*\d+\s*$/u, ''); // trailing mood "…: 70→100"
   s = s.replace(/\s*\([^)]*\d[^)]*\)\s*$/u, ''); // trailing amount "(8.00 €)"
   return s.trim();
 }
 
 /**
- * Build one `.log-row` element (time · tag · message · delta).
- * Pass `guestName` to render a single guest's own row: the message is cleaned of
- * names/numbers and the numeric delta is dropped (a tidy activity diary).
+ * A guest line for the shared log window: keep the leading guest name, but drop
+ * any "#id" tag and numbers — e.g. "Anna Müller kauft ein Bier".
  */
-export function buildLogRow(e: LogEntry, guestName?: string): HTMLElement {
-  const clean = guestName !== undefined;
+export function guestLogText(msg: string): string {
+  return stripNumbers(msg.replace(/^#\d+\s*/, ''));
+}
+
+/**
+ * A single guest's own timeline: also drop their (redundant) leading name, so it
+ * reads as a bare activity diary — e.g. "kauft ein Bier", "Hund gestreichelt".
+ */
+export function guestEventText(msg: string, name: string): string {
+  let s = msg.replace(/^#\d+\s*/, '');
+  if (name && s.startsWith(name)) s = s.slice(name.length).replace(/^\s+/, '');
+  return stripNumbers(s);
+}
+
+interface RowOpts {
+  /** A single guest's own timeline: strip their leading name + all numbers, no delta. */
+  ownName?: string;
+  /** A guest line in the shared log: keep the name, strip numbers, no delta. */
+  guestLine?: boolean;
+}
+
+/**
+ * Build one `.log-row` element (time · tag · message · delta).
+ * Guest rows (ownName / guestLine) are cleaned of numbers and show no delta;
+ * business rows keep their full message and numeric delta.
+ */
+export function buildLogRow(e: LogEntry, opts: RowOpts = {}): HTMLElement {
+  const clean = opts.ownName !== undefined || opts.guestLine === true;
 
   const row = document.createElement('div');
   row.className = `log-row cat-${e.cat}`;
@@ -52,7 +71,10 @@ export function buildLogRow(e: LogEntry, guestName?: string): HTMLElement {
 
   const msg = document.createElement('span');
   msg.className = 'log-msg';
-  msg.textContent = clean ? guestEventText(e.msg, guestName) : e.msg;
+  msg.textContent =
+    opts.ownName !== undefined ? guestEventText(e.msg, opts.ownName)
+    : opts.guestLine ? guestLogText(e.msg)
+    : e.msg;
 
   row.append(time, tag, msg);
 

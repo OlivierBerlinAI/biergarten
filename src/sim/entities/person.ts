@@ -225,9 +225,7 @@ export class Person {
       this.moodAcc.delete(reason);
       return;
     }
-    const to = this._satisfaction;
-    const from = clamp(to - acc, 0, 100);
-    w.log('mood', `#${this.id} ${reason}: ${from.toFixed(0)}→${to.toFixed(0)}`, acc, this.id);
+    w.log('mood', `${this.name} ${reason}`, acc, this.id);
     this.moodAcc.delete(reason);
   }
 
@@ -621,7 +619,7 @@ export class Person {
   private chilling(w: World): void {
     // Urgent: empty a full bladder first.
     if (this._bladder >= GUEST.bladderToilet) {
-      w.log('mood', `#${this.id} muss mal – geht aufs Klo`, undefined, this.id);
+      w.log('mood', `${this.name} muss mal – geht aufs Klo`, undefined, this.id);
       this.state = 'toToilet'; // walk to the toilet; find out there if it's usable
       return;
     }
@@ -811,7 +809,7 @@ export class Person {
       const why = this.leaveReason ? ` – ${this.leaveReason}` : '';
       w.log(
         'reputation',
-        `#${this.id} geht ${r.happy ? 'zufrieden' : 'unzufrieden'}${why} (Zufr. ${Math.round(this._satisfaction)}) · Ruf ${r.before.toFixed(1)}→${r.after.toFixed(1)}`,
+        `${this.name} geht ${r.happy ? 'zufrieden' : 'unzufrieden'}${why}`,
         r.after - r.before,
         this.id,
       );

@@ -36,7 +36,9 @@ export class LogView {
     const atBottom = this.list.scrollHeight - this.list.scrollTop - this.list.clientHeight < 28;
 
     for (const e of entries) {
-      const row = buildLogRow(e);
+      // Guest lines (those tagged with a guest id) show the name and no numbers;
+      // business lines keep their full message and numeric delta.
+      const row = buildLogRow(e, { guestLine: e.who !== undefined });
       if (!this.enabled.has(e.cat)) row.style.display = 'none';
       if (e.who !== undefined) {
         const who = e.who;
