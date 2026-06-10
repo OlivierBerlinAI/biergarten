@@ -18,8 +18,27 @@ export function fmtDelta(cat: LogCat, v: number): string {
   return `${sign}${mag}`;
 }
 
-/** Build one `.log-row` element (time · tag · message · delta). */
-export function buildLogRow(e: LogEntry): HTMLElement {
+/**
+ * Strip the guest's name, "#id" tag, mood "70→100" range and "(8.00 €)" amount
+ * out of a message, leaving a clean activity phrase (e.g. "Hund gestreichelt",
+ * "kauft ein Bier"). Used for a single guest's own timeline.
+ */
+export function guestEventText(msg: string, name: string): string {
+  let s = msg.replace(/^#\d+\s*/, ''); // leading "#42 " guest tag
+  if (name && s.startsWith(name)) s = s.slice(name.length).replace(/^\s+/, '');
+  s = s.replace(/\s*:\s*\d+\s*→\s*\d+\s*$/u, ''); // trailing mood "…: 70→100"
+  s = s.replace(/\s*\([^)]*\d[^)]*\)\s*$/u, ''); // trailing amount "(8.00 €)"
+  return s.trim();
+}
+
+/**
+ * Build one `.log-row` element (time · tag · message · delta).
+ * Pass `guestName` to render a single guest's own row: the message is cleaned of
+ * names/numbers and the numeric delta is dropped (a tidy activity diary).
+ */
+export function buildLogRow(e: LogEntry, guestName?: string): HTMLElement {
+  const clean = guestName !== undefined;
+
   const row = document.createElement('div');
   row.className = `log-row cat-${e.cat}`;
 
@@ -33,11 +52,11 @@ export function buildLogRow(e: LogEntry): HTMLElement {
 
   const msg = document.createElement('span');
   msg.className = 'log-msg';
-  msg.textContent = e.msg;
+  msg.textContent = clean ? guestEventText(e.msg, guestName) : e.msg;
 
   row.append(time, tag, msg);
 
-  if (e.delta !== undefined && e.delta !== 0) {
+  if (!clean && e.delta !== undefined && e.delta !== 0) {
     const d = document.createElement('span');
     d.className = `log-delta ${e.delta > 0 ? 'up' : 'down'}`;
     d.textContent = fmtDelta(e.cat, e.delta);

@@ -684,6 +684,7 @@ export class Person {
     this.petAnchor = { x: (this.pos.x + dog.pos.x) / 2, y: Math.min(this.pos.y, dog.pos.y) - 6 };
     if (--this.petTimer <= 0) {
       this.changeSat(w, this._satisfaction + GUEST.satPetDog, 'Hund gestreichelt');
+      this.flushMood(w, 'Hund gestreichelt'); // always log the petting, even if the gain clamped small
       this.endPet();
     }
   }

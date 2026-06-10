@@ -69,7 +69,7 @@ export class GuestsPanel {
       const item = this.items.get(id);
       if (item) item.sub.textContent = GuestsPanel.strip(e.msg);
       if (this.selected === id) {
-        this.logEl?.appendChild(buildLogRow(e));
+        this.logEl?.appendChild(buildLogRow(e, this.names.get(id) ?? ''));
         if (this.logEl) this.logEl.scrollTop = this.logEl.scrollHeight;
       }
     }
@@ -209,7 +209,8 @@ export class GuestsPanel {
     for (const [otherId, item] of this.items) item.el.classList.toggle('sel', otherId === id);
 
     const hist = this.history.get(id) ?? [];
-    this.logEl?.replaceChildren(...hist.map((e) => buildLogRow(e)));
+    const name = this.names.get(id) ?? '';
+    this.logEl?.replaceChildren(...hist.map((e) => buildLogRow(e, name)));
     if (this.emptyEl) this.emptyEl.style.display = 'none';
     if (this.logEl) this.logEl.scrollTop = this.logEl.scrollHeight;
 
