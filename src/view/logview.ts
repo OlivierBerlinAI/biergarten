@@ -9,20 +9,38 @@ import { buildLogRow } from './logrow.js';
 export class LogView {
   private readonly list = document.getElementById('log-list');
   private readonly win = document.getElementById('logwin');
-  private readonly enabled = new Set<LogCat>(['mood', 'reputation', 'money', 'staff']);
+  private readonly enabled = new Set<LogCat>();
   private readonly rows: { cat: LogCat; el: HTMLElement }[] = [];
   private readonly cap = 300; // keep the DOM light; oldest rows fall off
 
+  private get checkboxes(): HTMLInputElement[] {
+    return Array.from(document.querySelectorAll<HTMLInputElement>('#log-filters input[type=checkbox]'));
+  }
+
+  /** Mirror `enabled` to whatever the checkboxes currently show, then re-filter. */
+  private syncFromCheckboxes(): void {
+    this.enabled.clear();
+    for (const cb of this.checkboxes) if (cb.checked) this.enabled.add(cb.dataset.cat as LogCat);
+    this.applyFilter();
+  }
+
   /** @param onGuestClick called with a guest id when a guest row is clicked. */
   constructor(private readonly onGuestClick: (id: number) => void) {
-    document.querySelectorAll<HTMLInputElement>('#log-filters input[type=checkbox]').forEach((cb) => {
+    for (const cb of this.checkboxes) {
       const cat = cb.dataset.cat as LogCat;
       cb.addEventListener('change', () => {
         if (cb.checked) this.enabled.add(cat);
         else this.enabled.delete(cat);
         this.applyFilter();
       });
-    });
+    }
+    // Seed the filter from the checkboxes' *actual* rendered state, not a fixed
+    // list: browsers restore the previous checked state on reload (and on bfcache
+    // back/forward), so a hardcoded set would disagree with what the boxes show
+    // until you clicked each one. `pageshow` also catches a late restore.
+    this.syncFromCheckboxes();
+    window.addEventListener('pageshow', () => this.syncFromCheckboxes());
+
     document.getElementById('log-clear')?.addEventListener('click', () => this.clear());
     document.getElementById('log-close')?.addEventListener('click', () => this.win?.classList.add('hidden'));
     document.getElementById('btn-logs')?.addEventListener('click', () => this.win?.classList.toggle('hidden'));
