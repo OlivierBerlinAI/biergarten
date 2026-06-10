@@ -33,7 +33,9 @@ window.onload = (): void => {
   let baseZoom = 1;
   let followId: number | null = null;
   let demolishOn = false;
-  const stopFollow = (): void => { followId = null; };
+  // Losing focus (panning or zooming away) drops both the camera lock and the
+  // followed guest's yellow highlight ring.
+  const stopFollow = (): void => { followId = null; renderer.setSelected(null); };
 
   // Clicking a guest in the world: follow them and open their panel, zoomed in.
   const placement = new Placement(
