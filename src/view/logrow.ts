@@ -52,11 +52,13 @@ interface RowOpts {
 
 /**
  * Build one `.log-row` element (time · tag · message · delta).
- * Guest rows (ownName / guestLine) are cleaned of numbers and show no delta;
- * business rows keep their full message and numeric delta.
+ * Guest rows (ownName / guestLine) are cleaned of numbers and show no delta —
+ * except mood rows, which keep their satisfaction delta. Business rows keep
+ * their full message and numeric delta.
  */
 export function buildLogRow(e: LogEntry, opts: RowOpts = {}): HTMLElement {
   const clean = opts.ownName !== undefined || opts.guestLine === true;
+  const showDelta = !clean || e.cat === 'mood'; // mood deltas show even on guest lines
 
   const row = document.createElement('div');
   row.className = `log-row cat-${e.cat}`;
@@ -78,7 +80,7 @@ export function buildLogRow(e: LogEntry, opts: RowOpts = {}): HTMLElement {
 
   row.append(time, tag, msg);
 
-  if (!clean && e.delta !== undefined && e.delta !== 0) {
+  if (showDelta && e.delta !== undefined && e.delta !== 0) {
     const d = document.createElement('span');
     d.className = `log-delta ${e.delta > 0 ? 'up' : 'down'}`;
     d.textContent = fmtDelta(e.cat, e.delta);
