@@ -301,8 +301,14 @@ export const REPUTATION = {
   /** A guest leaving below this satisfaction counts as "unhappy" (for the log). */
   unhappyThreshold: 35,
   /** How much more an unhappy departure weighs in the rolling reputation average
-   *  than a happy one — bad word-of-mouth travels faster. 1 = even; 3 = triple. */
+   *  than a happy one — bad word-of-mouth travels faster. 1 = even; 3 = triple.
+   *  This is the weight just below the threshold; it ramps up with severity. */
   unhappyWeight: 3,
+  /** Weight of an utterly fed-up guest leaving at 0 satisfaction. The weight
+   *  scales linearly from `unhappyWeight` (at the threshold) to this (at 0), so a
+   *  guest storming off furious drags the long-term average down by ~a full point
+   *  instead of a fraction. */
+  severeWeight: 20,
 } as const;
 
 /** Economy knobs. All money values are in euros; 1 beer = 1 litre. */

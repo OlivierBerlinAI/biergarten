@@ -422,10 +422,14 @@ export class GameState {
     return { before, after: this.reputation, happy };
   }
 
-  /** Weight a departure carries in the rolling reputation average: unhappy
-   *  guests count REPUTATION.unhappyWeight× a happy one. */
+  /** Weight a departure carries in the rolling reputation average. Happy guests
+   *  weigh 1; below the unhappy threshold the weight ramps from `unhappyWeight`
+   *  up to `severeWeight` as satisfaction falls to 0, so the angriest guests bite
+   *  hardest into the long-term reputation. */
   private static repWeight(satisfaction: number): number {
-    return satisfaction < REPUTATION.unhappyThreshold ? REPUTATION.unhappyWeight : 1;
+    if (satisfaction >= REPUTATION.unhappyThreshold) return 1;
+    const severity = (REPUTATION.unhappyThreshold - satisfaction) / REPUTATION.unhappyThreshold; // 0..1
+    return REPUTATION.unhappyWeight + (REPUTATION.severeWeight - REPUTATION.unhappyWeight) * severity;
   }
 
   /** Average money earned per guest that has been through the garden. */
