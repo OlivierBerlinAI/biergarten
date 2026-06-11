@@ -321,7 +321,13 @@ export class Person {
 
   // --- states ---------------------------------------------------------------
 
+  /** Note a movement/activity step in the log (no mood or money delta). */
+  private logActivity(w: World, what: string): void {
+    w.log('activity', `${this.name} ${what}`, undefined, this.id);
+  }
+
   private arriving(w: World): boolean {
+    this.logActivity(w, 'sucht einen Platz'); // runs once, the moment they show up
     if (this.seat || this.aimForFreeSeat(w)) {
       this.state = 'toReserve';
     } else {
@@ -355,6 +361,7 @@ export class Person {
       w.seating.claim(target); // place the towel — first one wins
       this.seat = target;
       this.targetSeat = null;
+      this.logActivity(w, 'reserviert sich einen Platz');
       this.enterChilling();
     } else if (!this.aimForFreeSeat(w)) {
       this.startLooking();
@@ -651,6 +658,7 @@ export class Person {
     if (wantsBeer) {
       if (this.wallet_ >= w.eco.beerPrice) {
         this.mugVisible = false;
+        this.logActivity(w, 'geht zur Bar');
         this.state = 'toBar'; // they only learn of an empty tank at the counter
       } else {
         this.depart('kein Geld mehr');

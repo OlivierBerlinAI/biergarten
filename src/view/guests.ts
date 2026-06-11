@@ -50,18 +50,24 @@ export class GuestsPanel {
     document.getElementById('guest-close')?.addEventListener('click', () => this.win?.classList.add('hidden'));
   }
 
+  /** Ensure a guest is tracked (history + list row); returns their history. */
+  private ensureGuest(id: number): LogEntry[] {
+    let hist = this.history.get(id);
+    if (!hist) {
+      this.evictIfFull();
+      hist = [];
+      this.history.set(id, hist);
+      this.addItem(id);
+    }
+    return hist;
+  }
+
   /** Fold the freshly drained entries into per-guest histories + the list. */
   ingest(entries: LogEntry[]): void {
     for (const e of entries) {
       if (e.who === undefined) continue;
       const id = e.who;
-      let hist = this.history.get(id);
-      if (!hist) {
-        this.evictIfFull();
-        hist = [];
-        this.history.set(id, hist);
-        this.addItem(id);
-      }
+      const hist = this.ensureGuest(id);
       hist.push(e);
       if (hist.length > ENTRIES_PER_GUEST) hist.shift();
 
@@ -82,12 +88,17 @@ export class GuestsPanel {
     for (const p of people) {
       byId.set(p.id, p);
       this.lastStats.set(p.id, { wallet: p.wallet, spent: p.spent }); // remember for after they leave
-      if (!this.names.has(p.id)) {
-        this.names.set(p.id, p.name);
+      const newName = this.names.get(p.id) !== p.name;
+      if (newName) this.names.set(p.id, p.name);
+      // List a guest the instant they're in the garden — before any log entry
+      // (i.e. before they even find a seat), so arrivals show up right away.
+      this.ensureGuest(p.id);
+      if (newName) {
         const item = this.items.get(p.id);
         if (item) item.nameEl.textContent = p.name;
       }
     }
+    if (this.countEl) this.countEl.textContent = `${this.history.size}`;
 
     for (const [id, item] of this.items) {
       const present = byId.has(id);

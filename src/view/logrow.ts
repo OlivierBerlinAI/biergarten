@@ -8,6 +8,7 @@ export const CAT_LABEL: Record<LogCat, string> = {
   reputation: 'RUF',
   money: 'GELD',
   staff: 'PERS',
+  activity: 'AKT',
 };
 
 /** Mood/reputation deltas are point-precise; money/staff are whole euros. */

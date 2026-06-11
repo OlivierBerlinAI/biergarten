@@ -3,10 +3,10 @@
 // them each frame into a filterable on-screen window. Pure logic, no DOM —
 // headless runs (CLI/tests) simply never drain it (memory stays bounded).
 
-export type LogCat = 'mood' | 'reputation' | 'money' | 'staff';
+export type LogCat = 'mood' | 'reputation' | 'money' | 'staff' | 'activity';
 
 /** Order + display labels for the categories (used by the filter UI). */
-export const LOG_CATS: readonly LogCat[] = ['mood', 'reputation', 'money', 'staff'];
+export const LOG_CATS: readonly LogCat[] = ['mood', 'reputation', 'money', 'staff', 'activity'];
 
 export interface LogEntry {
   /** Monotonic id, so the view can dedupe/track rows. */
