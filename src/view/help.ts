@@ -19,10 +19,14 @@ const TOPICS: Topic[] = [
     title: '🎯 Ziel',
     html:
       '<p>Führe deinen Biergarten zum Erfolg: Halte die Gäste zufrieden, mach Gewinn ' +
-      'und baue den Garten Schritt für Schritt aus. Mit zufriedenen Gästen steigt dein Ruf, ' +
-      'der wiederum neue Gäste anlockt – ein guter Garten trägt sich also selbst. ' +
-      'Achte aber stets auf deinen Kontostand: Geht dir das <b>Geld</b> aus, ist die Runde vorbei. ' +
-      'Beginne klein, beobachte was die Gäste brauchen, und investiere die Gewinne gezielt weiter.</p>',
+      'und baue den Garten Schritt für Schritt aus. Im Kern dreht sich alles um <b>einen großen ' +
+      'Kreislauf</b>: Zufriedene Gäste verlassen den Garten gut gelaunt und heben deinen <b>Ruf</b> – ' +
+      'ein höherer Ruf lockt mehr neue Gäste an – mehr Gäste bringen mehr <b>Umsatz</b> – mit dem Geld ' +
+      'baust du aus und stellst Personal ein – besserer Service macht die Gäste wieder zufriedener. ' +
+      'Der Kreislauf dreht sich aber auch andersherum: Unzufriedene Gäste drücken den Ruf, dann kommen ' +
+      'weniger, der Umsatz bricht weg. Achte deshalb stets auf den Kontostand – geht dir das <b>Geld</b> ' +
+      'aus, ist die Runde vorbei. Beginne klein, beobachte, woran es den Gästen fehlt, und investiere ' +
+      'die Gewinne gezielt in den Engpass.</p>',
   },
   {
     title: '🕹️ Steuerung',
@@ -48,78 +52,107 @@ const TOPICS: Topic[] = [
     title: '🍺 Bier',
     html:
       '<p>Das Bier ist das Herz des Biergartens und deine wichtigste Einnahmequelle. Stell mit dem Regler ' +
-      'den <b>Bierpreis</b> ein: zu teuer schreckt ab, zu billig verschenkt Gewinn. Halte den <b>Bier-Tank</b> ' +
-      'gefüllt – mit „Bier bestellen" liefert ein Wagen die eingestellte <b>Nachkaufmenge</b> nach kurzer ' +
-      'Lieferzeit. Damit überhaupt ausgeschenkt werden kann, brauchst du eine <b>Bar (Ausschank)</b> und ' +
-      '<b>Servicekräfte</b>, die das Bier an die Gäste bringen. Läuft der Tank leer, bleiben die Gäste ' +
-      'durstig, unzufrieden und gehen früher – behalte die Tank-Anzeige oben links im Blick.</p>',
+      'den <b>Bierpreis</b> ein: Die Gäste erwarten etwa 8 €; jeder Euro <b>darunter hebt</b> ihre ' +
+      'Zufriedenheit, jeder Euro <b>darüber senkt</b> sie. Ein Bier <b>löscht den Durst</b> sofort – macht ' +
+      'aber zugleich etwas satt (Hunger steigt) und füllt die <b>Blase</b>, weshalb die Gäste danach früher ' +
+      'aufs Klo müssen. Bier kommt nur über eine <b>Bar (Ausschank)</b> und <b>Servicekräfte</b> zum Gast; ' +
+      'zu wenig Service bedeutet lange <b>Warteschlangen</b>, und Warten kostet laufend Zufriedenheit. ' +
+      'Halte den <b>Bier-Tank</b> gefüllt – „Bier bestellen" liefert nach kurzer Lieferzeit die eingestellte ' +
+      'Nachkaufmenge. Läuft der Tank leer, geht ein wartender Gast frustriert und sofort. Bier, Klo und ' +
+      'Service hängen also direkt zusammen.</p>',
   },
   {
     title: '🥨 Essen',
     html:
-      '<p><b>Brezelstände</b> stillen den Hunger der Gäste und bringen zusätzliches Geld. Klick einen Stand an, ' +
-      'um seinen <b>Preis</b>, die <b>Bestellmenge</b> und die <b>Auto-Lieferung</b> einzustellen; im Fenster ' +
-      'siehst du auch den aktuellen Vorrat dieses Stands. Ein leerer Stand verkauft nichts und lässt hungrige ' +
-      'Gäste stehen – behalte den Vorrat also im Auge. Aber Achtung: Niemand will eine Brezn von gestern. ' +
-      'Übrig gebliebene Brezn werden bei <b>Tagesbeginn entsorgt</b> (das kostet dich den Einkauf). ' +
-      'Lager deshalb nicht zu viele ein, sondern eher passend zum erwarteten Andrang.</p>',
+      '<p><b>Brezelstände</b> stillen den Hunger – und Hunger entsteht vor allem durchs <b>Biertrinken</b>, ' +
+      'die beiden Bedürfnisse gehören also zusammen. Klick einen Stand an, um <b>Preis</b>, <b>Bestellmenge</b> ' +
+      'und <b>Auto-Lieferung</b> einzustellen; auch hier gilt: Über dem erwarteten Preis (~2,50 €) sinkt die ' +
+      'Zufriedenheit, darunter steigt sie. Wie beim Bier brauchen auch die Stände <b>Servicekräfte</b> zum ' +
+      'Verkaufen. Ein <b>leerer Stand</b> enttäuscht hungrige Gäste spürbar – behalte den Vorrat also im Auge. ' +
+      'Aber Achtung: Niemand will eine Brezn von gestern. Übrige Brezn werden bei <b>Tagesbeginn entsorgt</b> ' +
+      '(das kostet dich den Einkauf). Lager deshalb nicht zu viele ein, sondern passend zum erwarteten Andrang.</p>',
   },
   {
     title: '🚽 Toiletten',
     html:
-      '<p>Wer viel trinkt, muss auch mal – ohne genug Klos staut sich der <b>Blasendruck</b> und die Laune kippt. ' +
-      'Baue genügend <b>WC-Häuser</b> und einen <b>Klo-Tank</b>, in dem sich die Abwässer sammeln. Ist der Tank ' +
-      'voll, schaffst du mit dem <b>Klowagen</b> Abhilfe, der ihn gegen Gebühr leert. Volle oder schmutzige Klos ' +
-      'drücken spürbar die Stimmung, also halte sie sauber. Eine <b>Nutzungsgebühr</b> bringt dir Geld, kostet ' +
-      'aber bei jedem Klogang etwas Zufriedenheit – ein kleiner Betrag ist meist verkraftbar, zu viel vergrault ' +
-      'die Gäste.</p>',
+      '<p>Die Toiletten sind die <b>direkte Folge des Bierausschanks</b>: Jedes Bier füllt die Blase, und ' +
+      'ab einem gewissen Druck sucht der Gast ein Klo. Baue genügend <b>WC-Häuser</b> und einen <b>Klo-Tank</b>, ' +
+      'in dem sich die Abwässer sammeln. Findet ein Gast <b>kein freies, sauberes Klo</b> – oder ist der ' +
+      '<b>Klo-Tank voll</b> –, kommt es im schlimmsten Fall zum „Malheur": eine Pfütze als <b>Unrat</b> plus ' +
+      'ein heftiger Zufriedenheitseinbruch. Ein gelungener Klogang dagegen <b>hebt</b> die Laune. Ist der Tank ' +
+      'voll, leert ihn der <b>Klowagen</b> gegen Gebühr; ohne das blockieren die Klos komplett. Eine ' +
+      '<b>Nutzungsgebühr</b> bringt Geld, kostet aber bei jedem Besuch Zufriedenheit – ein kleiner Betrag ist ' +
+      'meist verkraftbar, zu viel vergrault die Gäste. So koppeln Bier → Blase → Klo → Sauberkeit ineinander.</p>',
   },
   {
     title: '🧹 Sauberkeit',
     html:
-      '<p>Gäste hinterlassen mit der Zeit <b>Unrat (💩)</b> im Garten, der sich sichtbar ansammelt. ' +
-      '<b>Putzkräfte</b> räumen ihn weg und halten die Anlage sauber, während <b>Gärtner</b> sich um die ' +
-      'Deko (Büsche, Blumen, Bäume) kümmern und sie frisch halten. Ein dreckiger Garten senkt die ' +
-      'Zufriedenheit der Anwesenden und beschädigt langfristig deinen <b>Ruf</b>, was wiederum weniger ' +
-      'Gäste bedeutet. Wächst der Garten, brauchst du entsprechend mehr Putzpersonal – die Unrat-Anzeige ' +
-      'oben links zeigt dir, ob du hinterherkommst.</p>',
+      '<p>Gäste (und Hunde) hinterlassen mit der Zeit <b>Unrat (💩)</b>, dazu kommen die Pfützen aus ' +
+      'Klo-Malheurs. Jeder Haufen in der Nähe zieht die Zufriedenheit der umstehenden Gäste <b>laufend</b> ' +
+      'nach unten – viel Dreck wirkt also stärker als wenig. <b>Putzkräfte</b> räumen den Unrat weg und ' +
+      'schrubben zugleich verschmutzte Klos, während <b>Gärtner</b> die Deko pflegen. Hier schließt sich der ' +
+      'Bogen zur Sauberkeit der Toiletten: Zu wenige Putzkräfte → schmutzige Klos und liegender Unrat → ' +
+      'sinkende Zufriedenheit → unzufriedene Abgänge → schlechterer <b>Ruf</b> → weniger Gäste. Wächst der ' +
+      'Garten, brauchst du mehr Putzpersonal – die Unrat- und Verschmutzungs-Anzeigen oben links zeigen, ' +
+      'ob du hinterherkommst.</p>',
+  },
+  {
+    title: '🎵 Deko & DJ',
+    html:
+      '<p><b>Deko</b> (Büsche, Blumen, Bäume) und <b>DJs</b> wirken nicht aufs Geld, sondern direkt auf die ' +
+      '<b>Zufriedenheit</b> der Gäste in der Umgebung – sie sind dein Hebel, um die Stimmung über das ' +
+      'Nötigste hinaus zu heben. Gepflegte Pflanzen geben einen <b>Bonus</b>, vertrocknete dagegen einen ' +
+      '<b>Malus</b>; deshalb braucht Deko <b>Gärtner</b>, die sie frisch halten (oder den Auto-Austausch, ' +
+      'der tote Pflanzen gegen Geld ersetzt). Ein <b>DJ</b> hebt die Laune im mittleren Umkreis – steht man ' +
+      'aber zu nah dran oder überlappen sich mehrere DJs, kippt der Effekt ins Negative. Setz DJs also ' +
+      'verteilt und mit Abstand zu den Sitzplätzen.</p>',
   },
   {
     title: '👥 Personal',
     html:
-      '<p>Dein Personal hält den Laden am Laufen: <b>Servicekräfte</b> schenken Bier aus, <b>Putzkräfte</b> ' +
-      'beseitigen Unrat, <b>Gärtner</b> pflegen die Deko und <b>DJs</b> sorgen für Stimmung. Über die ＋/－ ' +
-      'Knöpfe stellst du ein oder entlässt – jede Einstellung kostet einmalig eine Gebühr <b>plus täglichen ' +
-      'Lohn</b>, der laufend von deinem Konto abgeht. Zu wenig Personal führt zu langen Wartezeiten und ' +
-      'genervten Gästen, zu viel frisst unnötig Lohnkosten. Passe die Mannschaft also an die Größe deines ' +
-      'Gartens und den aktuellen Andrang an.</p>',
+      '<p>Personal ist das <b>Bindeglied</b> zwischen Ausstattung und zufriedenen Gästen: <b>Servicekräfte</b> ' +
+      'schenken Bier aus und verkaufen Brezn (sie werden automatisch dorthin geschickt, wo gerade der größte ' +
+      'Andrang ist), <b>Putzkräfte</b> beseitigen Unrat und Klo-Schmutz, <b>Gärtner</b> pflegen die Deko und ' +
+      '<b>DJs</b> betreiben die DJ-Pulte. Über die ＋/－ Knöpfe stellst du ein oder entlässt – jede Einstellung ' +
+      'kostet einmalig plus <b>täglichen Lohn</b>, der laufend abgeht. Hier liegt die Gratwanderung: <b>Zu ' +
+      'wenig</b> Personal → lange Schlangen, liegender Dreck, tote Deko → unzufriedene Gäste; <b>zu viel</b> ' +
+      'Personal → die Löhne fressen den Gewinn, du kannst dir Bier, Brezn oder Ausbau nicht mehr leisten. ' +
+      'Stell also genau so viel ein, wie der aktuelle Andrang rechtfertigt.</p>',
   },
   {
     title: '😊 Gäste',
     html:
-      '<p>Jeder Gast hat eigene Bedürfnisse: <b>Durst</b>, <b>Hunger</b>, <b>Blasendruck</b> und eine daraus ' +
-      'resultierende <b>Zufriedenheit</b>. Werden die Bedürfnisse erfüllt, steigt die Laune; lange Wartezeiten, ' +
-      'volle Klos oder Dreck drücken sie. Über <b>👥 Gäste</b> öffnest du eine Liste aller Gäste und kannst den ' +
-      'gesamten <b>Verlauf</b> jedes Einzelnen nachverfolgen – praktisch, um zu sehen, woran es gerade hakt. ' +
-      'Zufriedene Gäste bleiben länger, kaufen mehr und verbessern deinen Ruf, unzufriedene gehen früher.</p>',
+      '<p>Jeder Gast hat eigene Bedürfnisse – <b>Durst</b>, <b>Hunger</b>, <b>Blasendruck</b> – und eine ' +
+      'daraus resultierende <b>Zufriedenheit</b>. Diese Zufriedenheit ist die <b>zentrale Stellgröße</b> des ' +
+      'Spiels: Sie steigt durch erfüllte Bedürfnisse, faire Preise, Deko und Musik, und sie sinkt durch ' +
+      'Warten, Dreck, volle Klos, überteuerte Preise oder fehlende Plätze. Sie entscheidet, <b>wie lange ' +
+      'ein Gast bleibt und wie viel er ausgibt</b> – und beim Gehen prägt sie deinen Ruf: unzufriedene ' +
+      'Abgänge zählen dabei <b>schwerer</b> als zufriedene. Über <b>👥 Gäste</b> öffnest du die Liste und den ' +
+      'vollständigen <b>Verlauf</b> jedes Einzelnen – ideal, um zu sehen, woran es gerade hakt (Schlange? ' +
+      'Klo? Preis?), und genau dort nachzubessern.</p>',
   },
   {
     title: '📣 Werbung & Ruf',
     html:
-      '<p>Mit dem <b>Werbebudget</b> pro Tag machst du deinen Biergarten bekannter und lockst zusätzliche ' +
-      'Gäste an – der eingestellte Betrag wird täglich investiert. Der <b>Ruf (Langzeit)</b> ist dein ' +
-      'wichtigster Wachstumshebel: Er steigt langsam durch viele zufriedene Gäste und sinkt durch schlechte ' +
-      'Erlebnisse wie Dreck, volle Klos oder leere Bar. Ein hoher Ruf bringt von ganz allein mehr Besucher, ' +
-      'ein schlechter lässt den Garten verwaisen. Werbung wirkt sofort, ein guter Ruf dafür dauerhaft.</p>',
+      '<p>Der <b>Ruf (Langzeit)</b> ist die <b>Brücke</b> zwischen der Zufriedenheit von heute und den Gästen ' +
+      'von morgen: Er ist ein gleitender Durchschnitt über viele Abgänge und bestimmt, <b>wie viele neue ' +
+      'Gäste pro Stunde</b> überhaupt erscheinen – grob etwa „Ruf geteilt durch 10". Zufriedene Abgänge heben ' +
+      'ihn langsam, unzufriedene drücken ihn (und das stärker). Weil er so träge ist, wirken frühe Fehler ' +
+      'lange nach. Das <b>Werbebudget</b> pro Tag ist die schnelle Alternative: Es gibt einen sofortigen ' +
+      'Ruf-Schub, der aber täglich abklingt – Werbung musst du also laufend zahlen, um sie zu halten. ' +
+      'Faustregel: Werbung füllt kurzfristig den Garten, ein guter Ruf trägt ihn dauerhaft.</p>',
   },
   {
     title: '💰 Geld',
     html:
-      '<p>Oben links findest du dein <b>Geld</b>, das verkaufte Bier und weitere Kennzahlen wie den Umsatz ' +
-      'pro Besucher. <b>Einnahmen</b> kommen aus dem Verkauf von Bier und Essen sowie aus Klogebühren; ' +
-      '<b>Ausgaben</b> entstehen durch Einkauf (Bier, Brezn), Löhne, Bauten, den Klowagen und Werbung. ' +
-      'Über der Uhr unten links zeigen dir grüne und rote Zahlen jede Einnahme und Ausgabe in Echtzeit an. ' +
-      'Plane Investitionen so, dass dein Konto immer im <b>Plus</b> bleibt – bei null ist die Runde vorbei.</p>',
+      '<p>Geld ist das Ergebnis aller anderen Mechaniken und zugleich dein Treibstoff: <b>Einnahmen</b> kommen ' +
+      'aus dem Verkauf von Bier und Brezn sowie aus Klogebühren, <b>Ausgaben</b> aus Einkauf (Bier, Brezn), ' +
+      'Löhnen, Bauten, Klowagen und Werbung. Entscheidend ist: Mehr Umsatz entsteht nicht durch höhere Preise, ' +
+      'sondern über den <b>Kreislauf</b> – zufriedene Gäste, guter Ruf, mehr Besucher, die länger bleiben und ' +
+      'mehr kaufen. Höhere Preise bringen kurz mehr pro Verkauf, senken aber die Zufriedenheit und damit ' +
+      'mittelfristig die Gästezahl. Oben links siehst du Geld und Kennzahlen wie den Umsatz pro Besucher, ' +
+      'über der Uhr poppen Ein- und Ausgaben in Echtzeit auf. Halte das Konto im <b>Plus</b> – bei null ist ' +
+      'die Runde vorbei.</p>',
   },
   {
     title: '⏯️ Pause & Hilfe',
