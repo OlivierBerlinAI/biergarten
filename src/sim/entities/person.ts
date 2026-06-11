@@ -109,8 +109,7 @@ export class Person {
   private readonly rejectedStalls = new Set<number>(); // cabins found too dirty this visit
   private pretzelDisappointed = false; // gave up on a pretzel — don't keep pestering the stand
   private hadFirstBeer = false; // becomes true once they've bought their first beer
-  private nearLitter = false; // currently standing in a litter zone (edge-detect encounters)
-  private litterEncounters = 0; // distinct piles passed while still empty-handed
+  private readonly seenLitter = new Set<number>(); // distinct piles passed before the first beer
   private decoMood = 0; // net mood drawn from vegetation so far (capped)
   private musicMood = 0; // net mood drawn from music so far (capped)
   private serveTimer = 0;
@@ -264,18 +263,16 @@ export class Person {
     const piles = w.litter.countNear(this.pos, LITTER.nearRadius);
     if (piles > 0) {
       this.changeSat(w, this._satisfaction + LITTER.satPerPileFrame * Math.min(piles, 6), 'Unrat in der Nähe');
-      // Edge-detect entering a litter zone: count it as one fresh "encounter".
-      // Too many of them before the first beer and the guest is grossed out
-      // enough to give up and head home (handled by walkOutDisgusted below).
-      if (!this.nearLitter) {
-        this.nearLitter = true;
-        if (!this.hadFirstBeer) this.litterEncounters++;
-      }
-    } else {
-      this.nearLitter = false;
     }
-    if (!this.hadFirstBeer && this.litterEncounters >= LITTER.disgustEncounters && this.state !== 'leaving' && this.state !== 'fetchTowel') {
-      this.walkOutDisgusted(w);
+    // Before their first beer, tally every *distinct* pile they walk past. Pass
+    // too many and they're too grossed out to stay (walkOutDisgusted). Counting
+    // pile ids (not "currently near litter") means dense litter racks up fast,
+    // instead of registering as one never-ending zone.
+    if (!this.hadFirstBeer) {
+      w.litter.collectNear(this.pos, LITTER.nearRadius, this.seenLitter);
+      if (this.seenLitter.size >= LITTER.disgustEncounters && this.state !== 'leaving' && this.state !== 'fetchTowel') {
+        this.walkOutDisgusted(w);
+      }
     }
     if (chance(LITTER.personMessChance)) w.litter.add(this.pos, 'poop');
 

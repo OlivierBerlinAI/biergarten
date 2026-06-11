@@ -42,6 +42,18 @@ export class LitterField {
     return n;
   }
 
+  /** Record the ids of every pile within `radius` of `from` into `out`. Lets a
+   *  guest tally how many *distinct* messes they've walked past (a set, so the
+   *  same pile lingering nearby is only ever counted once). */
+  collectNear(from: Vec, radius: number, out: Set<number>): void {
+    const r2 = radius * radius;
+    for (const l of this.items) {
+      const dx = l.pos.x - from.x;
+      const dy = l.pos.y - from.y;
+      if (dx * dx + dy * dy <= r2) out.add(l.id);
+    }
+  }
+
   nearestUnclaimed(from: Vec): Litter | null {
     let best: Litter | null = null;
     let bestDist = Infinity;
