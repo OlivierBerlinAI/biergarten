@@ -138,7 +138,8 @@
     #gamewin #game-close,
     #pretzelwin #pretzel-close,
     #logwin #log-close,
-    #guestwin #guest-close {
+    #guestwin #guest-close,
+    #helpwin #help-close {
       width: 28px; height: 28px; padding: 0; margin: 0; flex: none;
       font-size: 15px; line-height: 1; box-shadow: none;
       display: inline-flex; align-items: center; justify-content: center;
@@ -437,6 +438,63 @@
       line-height: 1.45;
     }
     #guest-log-empty { padding: 8px; opacity: 0.6; }
+
+    /* help / handbook overlay (full-screen, dims the game; pauses while open) */
+    #helpwin {
+      position: fixed;
+      inset: 0;
+      z-index: 24;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.72);
+    }
+    #helpwin.hidden { display: none; }
+    #help-box {
+      position: relative;
+      width: 760px;
+      max-width: calc(100vw - 24px);
+    }
+    #help-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    #help-head h3 { margin: 0; }
+    #help-body {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 12px;
+      height: 60vh;
+      min-height: 300px;
+    }
+    #help-topics {
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .help-topic {
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .help-topic:hover { background: rgba(255, 255, 255, 0.07); }
+    .help-topic.sel { background: rgba(255, 211, 77, 0.18); color: #ffd34d; font-weight: 600; }
+    #help-content {
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 8px;
+      padding: 14px 18px;
+      line-height: 1.65;
+      font-size: 13px;
+    }
+    #help-content h4 { margin: 0 0 8px; font-size: 16px; color: #ffd34d; text-transform: none; letter-spacing: 0; }
+    #help-content p { margin: 0; }
+    #help-foot {
+      margin-top: 10px;
+      font-size: 12px;
+      opacity: 0.85;
+    }
+    #help-foot label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    #help-foot input { accent-color: #ffd34d; margin: 0; }
   </style>
 </head>
 <body>
@@ -528,6 +586,7 @@
     <button id="btn-demolish">🗑️ Abreißen</button>
     <button id="btn-logs">🐞 Logs</button>
     <button id="btn-guests">👥 Gäste</button>
+    <button id="btn-help">📖 Hilfe</button>
     <button id="btn-settings">⚙️ Einstellungen</button>
     <button id="btn-game">🎮 Spiel</button>
   </div>
@@ -672,6 +731,23 @@
       <div id="overlay-sub"></div>
       <button id="btn-keep-playing" class="big-btn" style="display:none">▶️ Weiterspielen</button>
       <button id="btn-restart" class="big-btn">🔄 Neue Runde</button>
+    </div>
+  </div>
+
+  <!-- Help / handbook overlay (opens at game start; pauses the sim while open) -->
+  <div id="helpwin" class="hidden">
+    <div id="help-box" class="panel">
+      <div id="help-head">
+        <h3>📖 Handbuch</h3>
+        <button id="help-close" class="logbtn">✕</button>
+      </div>
+      <div id="help-body">
+        <div id="help-topics"></div>
+        <div id="help-content"></div>
+      </div>
+      <div id="help-foot">
+        <label><input type="checkbox" id="help-autoopen"> Beim Spielstart automatisch anzeigen</label>
+      </div>
     </div>
   </div>
 

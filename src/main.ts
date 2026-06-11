@@ -13,6 +13,7 @@ import { Placement } from './view/placement.js';
 import { SoundEngine } from './view/sound.js';
 import { LogView } from './view/logview.js';
 import { GuestsPanel } from './view/guests.js';
+import { Help } from './view/help.js';
 
 window.onload = (): void => {
   const canvas = document.getElementById('stage') as HTMLCanvasElement;
@@ -25,6 +26,9 @@ window.onload = (): void => {
   const hud = new Hud();
   const guests = new GuestsPanel(renderer);
   const logview = new LogView((id) => guests.openFor(id));
+  const help = new Help();
+  // Bottom-menu "Hilfe" button opens the handbook (and thus pauses the sim).
+  document.getElementById('btn-help')?.addEventListener('click', () => help.open());
 
   let speed = 1;
   let paused = false;
@@ -98,6 +102,8 @@ window.onload = (): void => {
     if (blank) game.makeBlank();
     started = true;
     startWin?.classList.add('hidden');
+    // Greet the player with the handbook unless they've opted out of it.
+    if (Help.shouldAutoOpen()) help.open();
   };
   document.getElementById('btn-start-basics')?.addEventListener('click', () => beginGame(false));
   document.getElementById('btn-start-blank')?.addEventListener('click', () => beginGame(true));
@@ -112,7 +118,9 @@ window.onload = (): void => {
   });
 
   paper.view.onFrame = (): void => {
-    if (started && !paused && !game.ended) {
+    // The open handbook pauses the sim (like a modal), without touching the
+    // manual pause state — closing it resumes at the previous speed.
+    if (started && !paused && !help.isOpen() && !game.ended) {
       for (let i = 0; i < speed; i++) game.tick();
     }
     // Play (deduped) sound effects the backend queued this frame.
