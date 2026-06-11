@@ -257,6 +257,10 @@ export const LITTER = {
   nearRadius: 95,
   /** Satisfaction lost per frame for each nearby pile (grossness up close). */
   satPerPileFrame: -0.012,
+  /** Distinct litter encounters a guest tolerates before their FIRST beer.
+   *  Pass this many fresh piles while still empty-handed and they're disgusted
+   *  enough to give up and head home. */
+  disgustEncounters: 5,
 } as const;
 
 /** Putzkraft (cleaner) entity movement (50% slower than before). */

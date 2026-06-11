@@ -108,6 +108,9 @@ export class Person {
   private toiletHouse: WcHouse | null = null; // the WC house being tried right now
   private readonly rejectedStalls = new Set<number>(); // cabins found too dirty this visit
   private pretzelDisappointed = false; // gave up on a pretzel — don't keep pestering the stand
+  private hadFirstBeer = false; // becomes true once they've bought their first beer
+  private nearLitter = false; // currently standing in a litter zone (edge-detect encounters)
+  private litterEncounters = 0; // distinct piles passed while still empty-handed
   private decoMood = 0; // net mood drawn from vegetation so far (capped)
   private musicMood = 0; // net mood drawn from music so far (capped)
   private serveTimer = 0;
@@ -261,6 +264,18 @@ export class Person {
     const piles = w.litter.countNear(this.pos, LITTER.nearRadius);
     if (piles > 0) {
       this.changeSat(w, this._satisfaction + LITTER.satPerPileFrame * Math.min(piles, 6), 'Unrat in der Nähe');
+      // Edge-detect entering a litter zone: count it as one fresh "encounter".
+      // Too many of them before the first beer and the guest is grossed out
+      // enough to give up and head home (handled by walkOutDisgusted below).
+      if (!this.nearLitter) {
+        this.nearLitter = true;
+        if (!this.hadFirstBeer) this.litterEncounters++;
+      }
+    } else {
+      this.nearLitter = false;
+    }
+    if (!this.hadFirstBeer && this.litterEncounters >= LITTER.disgustEncounters && this.state !== 'leaving' && this.state !== 'fetchTowel') {
+      this.walkOutDisgusted(w);
     }
     if (chance(LITTER.personMessChance)) w.litter.add(this.pos, 'poop');
 
@@ -423,6 +438,7 @@ export class Person {
       w.eco.pourBeer();
       this.wallet_ -= price;
       this._spent += price;
+      this.hadFirstBeer = true; // they've got a drink — litter no longer drives them off
       this.mugVisible = true;
       this.beerLevel = 1;
       w.log('money', `${this.name} kauft ein Bier (${price.toFixed(2)} €)`, price, this.id);
@@ -886,6 +902,12 @@ export class Person {
     this.releaseSlot(w);
     w.stands.leave(this);
     this.depart(reason);
+  }
+
+  /** Grossed out by too much litter before even getting a beer: lose the will,
+   *  take a satisfaction hit (so they leave genuinely unhappy) and head home. */
+  private walkOutDisgusted(w: World): void {
+    this.frustratedLeave(w, GUEST.satNoBeer, 'zu viel Unrat – keine Lust mehr');
   }
 
   /**
