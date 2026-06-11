@@ -46,7 +46,9 @@ const TOPICS: Topic[] = [
     title: '🥨 Essen',
     html:
       '<p><b>Brezelstände</b> stillen den Hunger. Klick einen Stand an, um Preis, Bestellmenge und ' +
-      '<b>Auto-Lieferung</b> einzustellen. Ein leerer Stand verkauft nichts – behalte den Vorrat im Auge.</p>',
+      '<b>Auto-Lieferung</b> einzustellen. Ein leerer Stand verkauft nichts – behalte den Vorrat im Auge. ' +
+      'Aber Achtung: Niemand will eine Brezn von gestern – übrige Brezn werden bei Tagesbeginn ' +
+      '<b>entsorgt</b>. Lager also nicht zu viele ein.</p>',
   },
   {
     title: '🚽 Toiletten',
