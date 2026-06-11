@@ -492,7 +492,7 @@ export const GUEST = {
 
   // --- dog petting (a relaxing guest now and then greets a wandering dog) ----
   /** Chance per chilling frame that a guest looks around for a dog to pet. */
-  petChance: 0.004,
+  petChance: 0.0004,
   /** A guest only sets off to pet a dog this close to where they're sitting. */
   petRadius: 150,
   /** Frames spent walking over before giving up on reaching a roaming dog. */
